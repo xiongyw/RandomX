@@ -26,7 +26,10 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+
 cmake_minimum_required(VERSION 2.8.7)
+
+
 
 set (randomx_sources
 src/aes_hash.cpp
@@ -50,6 +53,7 @@ src/reciprocal.c
 src/virtual_machine.cpp
 src/vm_compiled_light.cpp
 src/blake2/blake2b.c)
+
 
 if(NOT ARCH_ID)
   # allow cross compiling
@@ -100,6 +104,13 @@ if (ARCH_ID STREQUAL "x86_64" OR ARCH_ID STREQUAL "x86-64" OR ARCH_ID STREQUAL "
 
   if(ARCH STREQUAL "native")
     add_flag("-march=native")
+  elseif(ARCH STREQUAL "rv64g")
+    message("ARCH=rv64g...")
+    set(CMAKE_C_COMPILER "/opt/riscv64/bin/riscv64-unknown-elf-gcc")
+    set(CMAKE_CXX_COMPILER "/opt/riscv64/bin/riscv64-unknown-elf-g++")
+    set(CMAKE_C_FLAGS  "${CMAKE_CXX_FLAGS} -march=rv64imfd")
+    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -march=rv64imfd")
+    #add_flag("-march=rv64imfd")
   else()
     # default build has hardware AES enabled (software AES can be selected at runtime)
     add_flag("-maes")

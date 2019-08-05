@@ -47,6 +47,7 @@ namespace randomx {
 		rx_aligned_free(ptr);
 	}
 
+    // explicit instantiation of template class: all of its members are also instantiated
 	template class AlignedAllocator<CacheLineSize>;
 
 	void* LargePageAllocator::allocMemory(size_t count) {

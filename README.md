@@ -35,6 +35,8 @@ cmake -DARCH=native ..
 make
 ```
 
+For RISC-V RV64G: `cmake -DARCH=rv64g ..`
+
 ### Windows
 
 On Windows, it is possible to build using MinGW (same procedure as on Linux) or using Visual Studio 2017 (solution file is provided).
