@@ -56,8 +56,13 @@ extern "C" {
 				case RANDOMX_FLAG_JIT:
 					cache->dealloc = &randomx::deallocCache<randomx::DefaultAllocator>;
 					cache->jit = new randomx::JitCompiler();
+#if defined(__riscv) // not JIT for Cache/Dataset init
+                    cache->initialize = &randomx::initCache;
+                    cache->datasetInit = &randomx::initDataset;
+#else
 					cache->initialize = &randomx::initCacheCompile;
 					cache->datasetInit = cache->jit->getDatasetInitFunc();
+#endif
 					cache->memory = (uint8_t*)randomx::DefaultAllocator::allocMemory(randomx::CacheSize);
 					break;
 

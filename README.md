@@ -44,7 +44,7 @@ For RISC-V RV64, suppose that the following tools are installed:
 ```
 cmake -DARCH=rv64 ..
 make
-spike pk randomx-tests
+spike pk testrv64
 `
 
 ### Windows

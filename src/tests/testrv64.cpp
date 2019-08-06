@@ -80,7 +80,9 @@ void runTest(const char* name, bool condition, FUNC f) {
 int main() {
 	char testHash[32];
 
-	//std::cout << "Allocating randomx_cache..." << std::endl;
+#if !defined(__riscv)  // the interpreter tests are ok, skip them
+
+	//std::cout << "Allocating randomx_cache RANDOMX_FLAG_DEFAULT..." << std::endl;
 	cache = randomx_alloc_cache(RANDOMX_FLAG_DEFAULT);
 
 	runTest("Cache initialization", RANDOMX_ARGON_ITERATIONS == 3 && RANDOMX_ARGON_LANES == 1 && RANDOMX_ARGON_MEMORY == 262144 && stringsEqual(RANDOMX_ARGON_SALT, "RandomX\x03"),	[]() {
@@ -963,6 +965,7 @@ int main() {
 	});
 
 	vm = randomx_create_vm(RANDOMX_FLAG_DEFAULT, cache, nullptr);
+#endif
 
 	auto test_a = [&] {
 		char hash[RANDOMX_HASH_SIZE];
@@ -997,6 +1000,8 @@ int main() {
 		assert(equalsHex(hash, "f60caf300917760337e8ce51487484e6a33d4aaa15aa79c985efb4ea00390918"));
 	};
 
+
+#if !defined(__riscv)
 	runTest("Hash test 1a (interpreter)", stringsEqual(RANDOMX_ARGON_SALT, "RandomX\x03"), test_a);
 
 	runTest("Hash test 1b (interpreter)", stringsEqual(RANDOMX_ARGON_SALT, "RandomX\x03"), test_b);
@@ -1008,10 +1013,17 @@ int main() {
 	runTest("Hash test 1e (interpreter)", stringsEqual(RANDOMX_ARGON_SALT, "RandomX\x03"), test_e);
 
 	randomx_release_cache(cache);
-	cache = randomx_alloc_cache(RANDOMX_FLAG_JIT);
+#endif
+
+	std::cout << "randomx_alloc_cache(RANDOMX_FLAG_JIT)..." << std::endl;
+    cache = randomx_alloc_cache(RANDOMX_FLAG_JIT);
 	currentKey.size = 0;
 	randomx_destroy_vm(vm);
+    
+	std::cout << "initCache()..." << std::endl;
 	initCache("test key 000");
+    
+	std::cout << "randomx_create_vm()..." << std::endl;
 	vm = randomx_create_vm(RANDOMX_FLAG_JIT, cache, nullptr);
 
 	runTest("Hash test 2a (compiler)", RANDOMX_HAVE_COMPILER && stringsEqual(RANDOMX_ARGON_SALT, "RandomX\x03"), test_a);

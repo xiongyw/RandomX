@@ -156,28 +156,37 @@ set_property(TARGET randomx PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET randomx PROPERTY CXX_STANDARD 11)
 set_property(TARGET randomx PROPERTY CXX_STANDARD_REQUIRED ON)
 
-add_executable(randomx-tests
-  src/tests/tests.cpp)
-target_link_libraries(randomx-tests
-  PRIVATE randomx)
-set_property(TARGET randomx-tests PROPERTY POSITION_INDEPENDENT_CODE ON)
-set_property(TARGET randomx-tests PROPERTY CXX_STANDARD 11)
-
-add_executable(randomx-codegen
-  src/tests/code-generator.cpp)
-target_link_libraries(randomx-codegen
-  PRIVATE randomx)
-
-set_property(TARGET randomx-codegen PROPERTY POSITION_INDEPENDENT_CODE ON)
-set_property(TARGET randomx-codegen PROPERTY CXX_STANDARD 11)
-
-if (NOT Threads_FOUND AND UNIX AND NOT APPLE)
-  set(THREADS_PREFER_PTHREAD_FLAG ON)
-  find_package(Threads)
+if (ARCH STREQUAL "rv64")
+  add_executable(testrv64
+    src/tests/testrv64.cpp)
+  target_link_libraries(testrv64
+    PRIVATE randomx)
+  set_property(TARGET testrv64 PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(TARGET testrv64 PROPERTY CXX_STANDARD 11)
+else()
+  add_executable(randomx-tests
+    src/tests/tests.cpp)
+  target_link_libraries(randomx-tests
+    PRIVATE randomx)
+  set_property(TARGET randomx-tests PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(TARGET randomx-tests PROPERTY CXX_STANDARD 11)
 endif()
 
 if (ARCH STREQUAL "rv64")
 else()
+	add_executable(randomx-codegen
+	  src/tests/code-generator.cpp)
+	target_link_libraries(randomx-codegen
+	  PRIVATE randomx)
+
+	set_property(TARGET randomx-codegen PROPERTY POSITION_INDEPENDENT_CODE ON)
+	set_property(TARGET randomx-codegen PROPERTY CXX_STANDARD 11)
+
+	if (NOT Threads_FOUND AND UNIX AND NOT APPLE)
+	  set(THREADS_PREFER_PTHREAD_FLAG ON)
+	  find_package(Threads)
+	endif()
+
   add_executable(randomx-benchmark
     src/tests/benchmark.cpp
     src/tests/affinity.cpp)

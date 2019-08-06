@@ -135,9 +135,11 @@ namespace randomx {
 	}
 
 	void initCacheCompile(randomx_cache* cache, const void* key, size_t keySize) {
-		initCache(cache, key, keySize);
+        initCache(cache, key, keySize);
+#if !defined(__riscv)        
 		cache->jit->generateSuperscalarHash(cache->programs, cache->reciprocalCache);
 		cache->jit->generateDatasetInitCode();
+#endif        
 	}
 
 	constexpr uint64_t superscalarMul0 = 6364136223846793005ULL;
