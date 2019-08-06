@@ -28,21 +28,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include <stdint.h>
-
-#if defined(_M_X64) || defined(__x86_64__) || defined(__riscv)   // fixme: clarify `fast_reciprocal` for rv64
-#define RANDOMX_HAVE_FAST_RECIPROCAL 1
-#else
-#define RANDOMX_HAVE_FAST_RECIPROCAL 0
-#endif
-
-#if defined(__cplusplus)
 extern "C" {
-#endif
-
-uint64_t randomx_reciprocal(uint64_t);
-uint64_t randomx_reciprocal_fast(uint64_t);
-
-#if defined(__cplusplus)
+	void randomx_program_prologue();
+	void randomx_program_loop_begin();
+	void randomx_program_loop_load();
+	void randomx_program_start();
+	void randomx_program_read_dataset();
+	void randomx_program_read_dataset_sshash_init();
+	void randomx_program_read_dataset_sshash_fin();
+	void randomx_program_loop_store();
+	void randomx_program_loop_end();
+	void randomx_dataset_init();
+	void randomx_program_epilogue();
+	void randomx_sshash_load();
+	void randomx_sshash_prefetch();
+	void randomx_sshash_end();
+	void randomx_sshash_init();
+	void randomx_program_end();
 }
-#endif

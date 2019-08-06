@@ -96,26 +96,37 @@ endfunction()
 
 # x86-64
 if (ARCH_ID STREQUAL "x86_64" OR ARCH_ID STREQUAL "x86-64" OR ARCH_ID STREQUAL "amd64")
-  list(APPEND randomx_sources
-    src/jit_compiler_x86_static.S
-    src/jit_compiler_x86.cpp)
-  # cheat because cmake and ccache hate each other
-  set_property(SOURCE src/jit_compiler_x86_static.S PROPERTY LANGUAGE C)
 
   if(ARCH STREQUAL "native")
     add_flag("-march=native")
-  elseif(ARCH STREQUAL "rv64g")
-    message("ARCH=rv64g...")
+    list(APPEND randomx_sources
+      src/jit_compiler_x86_static.S
+      src/jit_compiler_x86.cpp)
+    # cheat because cmake and ccache hate each other
+    set_property(SOURCE src/jit_compiler_x86_static.S PROPERTY LANGUAGE C)
+  elseif(ARCH STREQUAL "rv64")
+    message("ARCH=rv64: cross-compiling on x86-64...")
+
     #set(CMAKE_C_COMPILER "/opt/riscv64/bin/riscv64-unknown-elf-gcc")
     #set(CMAKE_CXX_COMPILER "/opt/riscv64/bin/riscv64-unknown-elf-g++")
     set(CMAKE_C_COMPILER "/opt/riscv64/bin/riscv64-unknown-linux-gnu-gcc")
     set(CMAKE_CXX_COMPILER "/opt/riscv64/bin/riscv64-unknown-linux-gnu-g++")
-    set(CMAKE_C_FLAGS  "${CMAKE_CXX_FLAGS} -march=rv64imfd -static")
-    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -march=rv64imfd -static")
-    #add_flag("-march=rv64imfd")
+    set(CMAKE_C_FLAGS  "${CMAKE_CXX_FLAGS} -march=rv64imfd -mabi=lp64d -static")
+    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -march=rv64imfd -mabi=lp64d -static")
+
+    list(APPEND randomx_sources
+      src/jit_compiler_rv64_static.S
+      src/jit_compiler_rv64.cpp)
+    # cheat because cmake and ccache hate each other
+    set_property(SOURCE src/jit_compiler_rv64_static.S PROPERTY LANGUAGE C)
   else()
     # default build has hardware AES enabled (software AES can be selected at runtime)
     add_flag("-maes")
+    list(APPEND randomx_sources
+      src/jit_compiler_x86_static.S
+      src/jit_compiler_x86.cpp)
+    # cheat because cmake and ccache hate each other
+    set_property(SOURCE src/jit_compiler_x86_static.S PROPERTY LANGUAGE C)
   endif()
 endif()
 
@@ -165,25 +176,28 @@ if (NOT Threads_FOUND AND UNIX AND NOT APPLE)
   find_package(Threads)
 endif()
 
-add_executable(randomx-benchmark
-  src/tests/benchmark.cpp
-  src/tests/affinity.cpp)
-target_link_libraries(randomx-benchmark
-  PRIVATE randomx
-  PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
-include(CheckCXXSourceCompiles)
-check_cxx_source_compiles("
-#include <cstdint>
-#include <atomic>
-int main() {
-  std::atomic<uint64_t> a;
-  a.is_lock_free();
-}" HAVE_CXX_ATOMICS)
-
-if(NOT HAVE_CXX_ATOMICS)
+if (ARCH STREQUAL "rv64")
+else()
+  add_executable(randomx-benchmark
+    src/tests/benchmark.cpp
+    src/tests/affinity.cpp)
   target_link_libraries(randomx-benchmark
-    PRIVATE "atomic")
+    PRIVATE randomx
+    PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+  include(CheckCXXSourceCompiles)
+  check_cxx_source_compiles("
+  #include <cstdint>
+  #include <atomic>
+  int main() {
+    std::atomic<uint64_t> a;
+    a.is_lock_free();
+  }" HAVE_CXX_ATOMICS)
+  
+  if(NOT HAVE_CXX_ATOMICS)
+    target_link_libraries(randomx-benchmark
+      PRIVATE "atomic")
+  endif()
+  set_property(TARGET randomx-benchmark PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(TARGET randomx-benchmark PROPERTY CXX_STANDARD 11)
 endif()
-set_property(TARGET randomx-benchmark PROPERTY POSITION_INDEPENDENT_CODE ON)
-set_property(TARGET randomx-benchmark PROPERTY CXX_STANDARD 11)

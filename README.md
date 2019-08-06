@@ -35,7 +35,17 @@ cmake -DARCH=native ..
 make
 ```
 
-For RISC-V RV64G: `cmake -DARCH=rv64g ..`
+For RISC-V RV64, suppose that the following tools are installed:
+
+- toolchain: riscv64-unknown-linux-gnu-*
+- spike
+- pk/bbl
+
+```
+cmake -DARCH=rv64 ..
+make
+spike pk randomx-tests
+`
 
 ### Windows
 
