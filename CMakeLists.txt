@@ -150,35 +150,31 @@ endif()
 
 set(RANDOMX_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/src" CACHE STRING "RandomX Include path")
 
-add_library(randomx
-  ${randomx_sources})
+add_library(randomx ${randomx_sources})
 set_property(TARGET randomx PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET randomx PROPERTY CXX_STANDARD 11)
 set_property(TARGET randomx PROPERTY CXX_STANDARD_REQUIRED ON)
 
+# interpreated c-example
+add_executable(api1 src/tests/api-example1.c)
+target_link_libraries(api1 PRIVATE randomx)
+set_property(TARGET api1 PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET api1 PROPERTY CXX_STANDARD 11)  
+
+
 if (ARCH STREQUAL "rv64")
-  add_executable(testrv64
-    src/tests/testrv64.cpp)
-  target_link_libraries(testrv64
-    PRIVATE randomx)
+  add_executable(testrv64 src/tests/testrv64.cpp)
+  target_link_libraries(testrv64 PRIVATE randomx)
   set_property(TARGET testrv64 PROPERTY POSITION_INDEPENDENT_CODE ON)
-  set_property(TARGET testrv64 PROPERTY CXX_STANDARD 11)
+  set_property(TARGET testrv64 PROPERTY CXX_STANDARD 11)  
 else()
-  add_executable(randomx-tests
-    src/tests/tests.cpp)
-  target_link_libraries(randomx-tests
-    PRIVATE randomx)
+  add_executable(randomx-tests src/tests/tests.cpp)
+  target_link_libraries(randomx-tests PRIVATE randomx)
   set_property(TARGET randomx-tests PROPERTY POSITION_INDEPENDENT_CODE ON)
   set_property(TARGET randomx-tests PROPERTY CXX_STANDARD 11)
-endif()
 
-if (ARCH STREQUAL "rv64")
-else()
-	add_executable(randomx-codegen
-	  src/tests/code-generator.cpp)
-	target_link_libraries(randomx-codegen
-	  PRIVATE randomx)
-
+	add_executable(randomx-codegen src/tests/code-generator.cpp)
+	target_link_libraries(randomx-codegen PRIVATE randomx)
 	set_property(TARGET randomx-codegen PROPERTY POSITION_INDEPENDENT_CODE ON)
 	set_property(TARGET randomx-codegen PROPERTY CXX_STANDARD 11)
 

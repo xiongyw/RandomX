@@ -129,6 +129,7 @@ extern "C" {
 			}
 		}
 		catch (std::exception &ex) {
+            std::cerr << "randomx_alloc_dataset() failed: " << ex.what() << std::endl;
 			if (dataset != nullptr) {
 				randomx_release_dataset(dataset);
 				dataset = nullptr;
@@ -249,6 +250,7 @@ extern "C" {
 			vm->allocate();
 		}
 		catch (std::exception &ex) {
+            std::cout << ex.what() << std::endl;
 			delete vm;
 			vm = nullptr;
 		}
