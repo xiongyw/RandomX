@@ -1,0 +1,95 @@
+/*
+    RISC-V REGISTER ALLOCATION:
+
+
+    1. integer registers
+
+    +-------------+--------------------------------------------------------------+
+    |    riscv    |                                                              |
+    |-------+-----|             randomx                                          |
+    |  abi  | idx |                                                              |
+    | name  | (x) |                                                              |
+    +-------+-----+--------------------------------------------------------------+
+    |  ra   |  1  | return address                                               |
+    |  sp   |  2  | stack pointer                                                |
+    |  gp   |  3  |                                                              |
+    |  tp   |  4  |                                                              |
+    |       |     |                                                              |
+    |  t0   |  5  | regfile addr, init input?                                    |
+    |  t1   |  6  | memory registers "ma" (high 32 bits), "mx" (low 32 bits)     |
+    |  t2   |  7  | scratchpad pointer                                           |
+    |  t3   | 28  | iteration counter "ic"                                       |
+    |  t4   | 29  | tmp1                                                         |
+    |  t5   | 30  | tmp2                                                         |
+    |  t6   | 31  | 0x3f, 6-bit mask used in IROR_R/IROL_R/IROR_C                |
+    |       |     |                                                              |
+    | s0/fp |  8  |                                                              |
+    |  s1   |  9  | L1 Mask, need save                                           |
+    |  s2   | 18  | L2 Mask, need save                                           |
+    |  s3   | 19  | L3 Mask, need save                                           |
+    |  s4   | 20  |                                                              |
+    |  s5   | 21  |                                                              |
+    |  s6   | 22  |                                                              |
+    |  s7   | 23  |                                                              |
+    |  s8   | 24  |                                                              |
+    |  s9   | 25  |                                                              |
+    |  s10  | 26  |                                                              |
+    |  s11  | 27  |                                                              |
+    |       |     |                                                              |
+    |  a0   | 10  | "r0"                                                         |
+    |  a1   | 11  | "r1"                                                         |
+    |  a2   | 12  | "r2"                                                         |
+    |  a3   | 13  | "r3"                                                         |
+    |  a4   | 14  | "r4"                                                         |
+    |  a5   | 15  | "r5"                                                         |
+    |  a6   | 16  | "r6"                                                         |
+    |  a7   | 17  | "r7"                                                         |
+    +-------------+--------------------------------------------------------------+
+
+    2. float registers
+
+    +-------------+--------------------------------------------------------------+
+    |    riscv    |                                                              |
+    |-------+-----|             randomx                                          |
+    |  abi  | idx |                                                              |
+    | name  | (f) |                                                              |
+    +-------+-----+--------------------------------------------------------------+
+    |  fa0  | 10  | "fl0"                                                        |
+    |  fa1  | 11  | "fl1"                                                        |
+    |  fa2  | 12  | "fl2"                                                        |
+    |  fa3  | 13  | "fl3"                                                        |
+    |  fa4  | 14  | "fh0"                                                        |
+    |  fa5  | 15  | "fh1"                                                        |
+    |  fa6  | 16  | "fh2"                                                        |
+    |  fa7  | 17  | "fh3"                                                        |
+    |       |     |                                                              |
+    |  ft0  |  0  | "el0"                                                        |
+    |  ft1  |  1  | "el1"                                                        |
+    |  ft2  |  2  | "el2"                                                        |
+    |  ft3  |  3  | "el3"                                                        |
+    |  ft4  |  4  | "eh0"                                                        |
+    |  ft5  |  5  | "eh1"                                                        |
+    |  ft6  |  6  | "eh2"                                                        |
+    |  ft7  |  7  | "eh3"                                                        |
+    |       |     |                                                              |
+    |  fs0  |  8  | "al0", need save                                             |
+    |  fs1  |  9  | "al1", need save                                             |
+    |  fs2  | 18  | "al2", need save                                             |
+    |  fs3  | 19  | "al3", need save                                             |
+    |  fs4  | 20  | "ah0", need save                                             |
+    |  fs5  | 21  | "ah1", need save                                             |
+    |  fs6  | 22  | "ah2", need save                                             |
+    |  fs7  | 23  | "ah3", need save                                             |
+    |             |                                                              |
+    |  ft8  | 28  | temporary                                                    |
+    |  ft9  | 29  | E 'and' mask = 0x00ffffffffffffff00ffffffffffffff            |
+    |  ft10 | 30  | E 'or' mask  = 0x3*00000000******3*00000000******            |
+    |  ft11 | 31  | scale mask   = 0x81f000000000000081f0000000000000            |
+    |  fs8  | 24  | temporary, need save                                         |
+    |  fs9  | 25  | E 'and' mask = 0x00ffffffffffffff00ffffffffffffff, need save |
+    |  fs10 | 26  | E 'or' mask  = 0x3*00000000******3*00000000******, need save |
+    |  fs11 | 27  | scale mask   = 0x81f000000000000081f0000000000000, need save |
+    +-------+-----+--------------------------------------------------------------+
+
+  NB: "need save" is for abi call
+*/

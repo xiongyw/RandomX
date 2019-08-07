@@ -143,7 +143,19 @@ namespace randomx {
 		static void executeInstruction(RANDOMX_EXE_ARGS);
 
 		static void exe_IADD_RS(RANDOMX_EXE_ARGS) {
+#if defined(__riscv)
+            int tmp0, tmp1;
+            asm volatile (
+                "mv %[tmp0], %[imm];"
+                "sll %[tmp1], %[src], %[shift];"
+                "add %[tmp0], %[tmp1], %[tmp0];"
+                "add %[dst], %[dst], %[tmp0];"
+                : [dst]"+r"(*ibc.idst)
+                : [tmp0]"r"(tmp0), [tmp1]"r"(tmp1), [imm]"r"(ibc.imm), [src]"r"(*ibc.isrc), [shift]"r"(ibc.shift)
+            );
+#else
 			*ibc.idst += (*ibc.isrc << ibc.shift) + ibc.imm;
+#endif
 		}
 
 		static void exe_IADD_M(RANDOMX_EXE_ARGS) {
