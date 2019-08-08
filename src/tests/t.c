@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <stdint.h>
 #include <inttypes.h>
 
+//#define NDEBUG
+#include <assert.h>
+
 // note: this is a test program to check behavior or risc-v instructions
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG
 #define PRI32(msg, name, value) printf("%s: "#name"=%"PRId32"(0x%08"PRIx32")\n", msg, value, value);
@@ -15,6 +17,48 @@
 #define PRI32(msg, name, value)
 #define PRI64(msg, name, value)
 #endif
+
+/*
+ * this routine is to check whether or not the value stored in int32_t can be
+ * represented by n-bit:
+ *  - if it's no-negative, then bit 31~(n-1) are all 0
+ *  - if it's negative, then bit 31~(n-1) are 1
+ * to summarize: bit 31~(n-1) should be all the same.
+ *
+ * simple tests for the routine:
+ *
+ *  for (int32_t i = -130; i <= 130; ++i) {
+ *      if(!is_nbit_imm(i, 8)) {
+ *          printf("fail: i=%d\n", i);
+ *      }
+ *  }
+ *
+ * it should print the following failure cases:
+ *
+ *  fail: i=-130
+ *  fail: i=-129
+ *  fail: i=128
+ *  fail: i=129
+ *  fail: i=130
+ */
+int is_nbit_imm(int32_t imm, uint8_t n)
+{
+    uint8_t N = sizeof(imm) * 8;
+
+    if (n == 0 || n > N)
+        return 0;
+
+    uint8_t bitx;
+    uint8_t sign_bit = (imm >> (n - 1)) & 0x1;
+
+    for (int i = n; i < N; ++i) {
+        bitx = (imm >> i) & 0x1;
+        if (sign_bit != bitx) {
+            return 0;
+        }
+    }
+    return 1;
+}
 
 // return 64-bit sign-extended int; `n` is the sign-bit idx (start from 0)
 int64_t sext(int64_t imm, int n)
@@ -48,6 +92,7 @@ int32_t low12(int32_t imm)
 // x[rd]=sext(imm[31:12] << 12)
 int64_t lui(int32_t imm20)
 {
+    assert(is_nbit_imm(imm20, 20));
     PRI32("lui()", imm20, imm20);
     int64_t tmp = sext(((uint64_t)imm20) << 12, 31);
     PRI64("lui()", tmp, tmp);
@@ -57,6 +102,7 @@ int64_t lui(int32_t imm20)
 // x[rd]=sext(x[rs1]+sext(imm12))[31:0]
 int32_t addiw(int64_t rs1, int32_t imm12)
 {
+    assert(is_nbit_imm(imm12, 12));
     PRI64("addiw()", rs1, rs1);
     PRI32("addiw()", imm12, imm12);
     int64_t sext_imm12 = sext(imm12, 11);
@@ -75,6 +121,7 @@ int64_t li_imm32(int32_t imm32)
 
     if (imm32 < 0) {  // negative
         if (low12(imm32) < 0) {
+            // hi20(imm32) < 0, so +1 will not overflow 20-bit
             dst = lui(hi20(imm32) + 1);
         } else {
             dst = lui(hi20(imm32));
@@ -132,3 +179,4 @@ int main(void)
 
     return 0;
 }
+
