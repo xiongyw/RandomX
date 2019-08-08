@@ -10,6 +10,7 @@
     |  abi  | idx |                                                              |
     | name  | (x) |                                                              |
     +-------+-----+--------------------------------------------------------------+
+    | zero  |  0  |                                                              |
     |  ra   |  1  | return address                                               |
     |  sp   |  2  | stack pointer                                                |
     |  gp   |  3  |                                                              |
@@ -81,14 +82,14 @@
     |  fs6  | 22  | "ah2", need save                                             |
     |  fs7  | 23  | "ah3", need save                                             |
     |             |                                                              |
-    |  ft8  | 28  | temporary                                                    |
-    |  ft9  | 29  | E 'and' mask = 0x00ffffffffffffff00ffffffffffffff            |
-    |  ft10 | 30  | E 'or' mask  = 0x3*00000000******3*00000000******            |
-    |  ft11 | 31  | scale mask   = 0x81f000000000000081f0000000000000            |
-    |  fs8  | 24  | temporary, need save                                         |
-    |  fs9  | 25  | E 'and' mask = 0x00ffffffffffffff00ffffffffffffff, need save |
-    |  fs10 | 26  | E 'or' mask  = 0x3*00000000******3*00000000******, need save |
-    |  fs11 | 27  | scale mask   = 0x81f000000000000081f0000000000000, need save |
+    |  ft8  | 28  | low-64 of temporary                                          |
+    |  ft9  | 29  | low-64 of E 'and' mask = 0x00ffffffffffffff00ffffffffffffff  |
+    |  ft10 | 30  | low-64 of E 'or' mask  = 0x3*00000000******3*00000000******  |
+    |  ft11 | 31  | low-64 of scale mask = 0x81f000000000000081f0000000000000    |
+    |  fs8  | 24  | hi-64 of temporary                                           |
+    |  fs9  | 25  | hi-64 of E 'and' mask                                        |
+    |  fs10 | 26  | hi-64 of E 'or' mask                                         |
+    |  fs11 | 27  | hi-64 of scale mask                                          |
     +-------+-----+--------------------------------------------------------------+
 
   NB: "need save" is for abi call

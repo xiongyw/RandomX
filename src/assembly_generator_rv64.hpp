@@ -35,16 +35,15 @@ namespace randomx {
 
 	class Program;
 	class SuperscalarProgram;
-	class AssemblyGeneratorX86;
+	class AssemblyGeneratorRV64;
 	class Instruction;
 
-	typedef void(AssemblyGeneratorX86::*InstructionGeneratorX86)(Instruction&, int);
+	typedef void(AssemblyGeneratorRV64::*InstructionGeneratorRV64)(Instruction&, int);
 
-	class AssemblyGeneratorX86 {
+	class AssemblyGeneratorRV64 {
 	public:
 		void generateProgram(Program& prog);
 		void generateAsm(SuperscalarProgram& prog);
-		void generateC(SuperscalarProgram& prog);
 		void printCode(std::ostream& os) {
 			os << asmCode.rdbuf();
 		}
@@ -87,7 +86,7 @@ namespace randomx {
 		void h_ISTORE(Instruction&, int);
 		void h_NOP(Instruction&, int);
 
-		static InstructionGeneratorX86 engine[256];
+		static InstructionGeneratorRV64 engine[256];
 		std::stringstream asmCode;
 		int registerUsage[RegistersCount];
 	};

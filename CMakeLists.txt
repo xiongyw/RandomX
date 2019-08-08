@@ -41,6 +41,7 @@ src/virtual_memory.cpp
 src/vm_interpreted.cpp
 src/allocator.cpp
 src/assembly_generator_x86.cpp
+src/assembly_generator_rv64.cpp
 src/instruction.cpp
 src/randomx.cpp
 src/superscalar.cpp
@@ -161,6 +162,11 @@ target_link_libraries(api1 PRIVATE randomx)
 set_property(TARGET api1 PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET api1 PROPERTY CXX_STANDARD 11)  
 
+add_executable(randomx-codegen src/tests/code-generator.cpp)
+target_link_libraries(randomx-codegen PRIVATE randomx)
+set_property(TARGET randomx-codegen PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET randomx-codegen PROPERTY CXX_STANDARD 11)
+
 
 if (ARCH STREQUAL "rv64")
   add_executable(testrv64 src/tests/testrv64.cpp)
@@ -173,10 +179,6 @@ else()
   set_property(TARGET randomx-tests PROPERTY POSITION_INDEPENDENT_CODE ON)
   set_property(TARGET randomx-tests PROPERTY CXX_STANDARD 11)
 
-	add_executable(randomx-codegen src/tests/code-generator.cpp)
-	target_link_libraries(randomx-codegen PRIVATE randomx)
-	set_property(TARGET randomx-codegen PROPERTY POSITION_INDEPENDENT_CODE ON)
-	set_property(TARGET randomx-codegen PROPERTY CXX_STANDARD 11)
 
 	if (NOT Threads_FOUND AND UNIX AND NOT APPLE)
 	  set(THREADS_PREFER_PTHREAD_FLAG ON)
