@@ -54,22 +54,25 @@ int32_t low5(int32_t imm); // shamt
  ******************************************************************************/
 
 
-int64_t add(int64_t rs1, int64_t rs2);
+int64_t rv_add(int64_t rs1, int64_t rs2);
 
 // x[rd]=x[rs1]+sext(imm)
-int64_t addi(int64_t rs1, int32_t imm12);
+int64_t rv_addi(int64_t rs1, int32_t imm12);
 
 // x[rd]=sext(x[rs1]+sext(imm12))[31:0])
-int64_t addiw(int64_t rs1, int32_t imm12);
+int64_t rv_addiw(int64_t rs1, int32_t imm12);
 
+int64_t rv_and(int64_t rs1, int64_t rs2);
 
 // psedu-insn `li`. only simulatr `li imm32`, as in randomx imm is always 32-bit
-int64_t li_imm32(int32_t imm32);
+int64_t rv_li_imm32(int32_t imm32);
+
+int64_t rv_ld(int64_t rs1, int32_t imm12);
 
 // x[rd]=sext(imm[31:12] << 12)
-int64_t lui(int32_t imm20);
+int64_t rv_lui(int32_t imm20);
 
-int64_t slli(int64_t rs1, uint8_t shamt);
+int64_t rv_slli(int64_t rs1, uint8_t shamt);
 
 
 #if defined(__cplusplus)

@@ -160,15 +160,19 @@ namespace randomx {
 #else
 #if (RV64_INSN_SIM)
             // fixme: it seems signed extended imm32 is always used as uint64_t (i.e., ibc.imm)
-            int64_t tmp1 = slli(*ibc.isrc, ibc.shift);
-            if (ibc.imm <= 2047) {
-                tmp1 = addi(tmp1, low12(ibc.imm));
+            int64_t tmp1 = rv_slli(*ibc.isrc, ibc.shift);
+            // CSAPP p105: When an operation is performed where one operand is signed
+            // and the other is unsigned, C implicitly casts the signed argument to 
+            // unsigned and performs the operations assuming the numbers are nonnegative. 
+            if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
+                //std::cout << "#";
+                tmp1 = rv_addi(tmp1, low12(ibc.imm));
             }
             else {
-                int64_t tmp2 = li_imm32(ibc.imm);
-                tmp1 = add(tmp1, tmp2);
+                int64_t tmp2 = rv_li_imm32(ibc.imm);
+                tmp1 = rv_add(tmp1, tmp2);
             }
-            *ibc.idst = add(*ibc.idst, tmp1);
+            *ibc.idst = rv_add(*ibc.idst, tmp1);
 #else
 			*ibc.idst += (*ibc.isrc << ibc.shift) + ibc.imm;
 #endif
@@ -176,7 +180,26 @@ namespace randomx {
 		}
 
 		static void exe_IADD_M(RANDOMX_EXE_ARGS) {
-			*ibc.idst += load64(getScratchpadAddress(ibc, scratchpad));
+#if (RV64_INSN_SIM)
+            //uint32_t addr = (*ibc.isrc + ibc.imm) & ibc.memMask;
+            int64_t scratchpad_reg = (int64_t)scratchpad;
+
+            int64_t tmp1; // (*ibc.isrc + ibc.imm)
+            if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
+                //std::cout << "#";
+                tmp1 = rv_addi(*ibc.isrc, low12(ibc.imm));
+            } else {
+                tmp1 = rv_li_imm32(ibc.imm);
+                tmp1 = rv_add(*ibc.isrc, tmp1);
+            }
+            int64_t tmp2 = rv_li_imm32(ibc.memMask);
+            tmp1 = rv_and(tmp1, tmp2);  // offset in scratchpad
+            tmp1 = rv_add(scratchpad_reg, tmp1); // absolute address
+            tmp1 = rv_ld(tmp1, 0);
+            *ibc.idst = rv_add(*ibc.idst, tmp1);
+#else
+            *ibc.idst += load64(getScratchpadAddress(ibc, scratchpad));
+#endif
 		}
 
 		static void exe_ISUB_R(RANDOMX_EXE_ARGS) {
