@@ -38,21 +38,50 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RV64_INSN_SIM   1
 
 #if (RV64_INSN_SIM)
-#define RV_LOAD64 \
+
+// auto variable `x_tmp1` holds the offset in scratchpad
+#define RX_LD_OFFSET \
     /*uint32_t addr = (*ibc.isrc + ibc.imm) & ibc.memMask; */       \
-    int64_t x_scratchpad = (int64_t)scratchpad;                     \
                                                                     \
     int64_t x_tmp1; /* (*ibc.isrc + ibc.imm) */                     \
     if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {             \
-        x_tmp1 = rv_addi(*ibc.isrc, low12(ibc.imm));                \
+        x_tmp1 = rv64_addi(*ibc.isrc, low12(ibc.imm));                \
     } else {                                                        \
-        x_tmp1 = rv_li_imm32(ibc.imm);                              \
-        x_tmp1 = rv_add(*ibc.isrc, x_tmp1);                         \
+        x_tmp1 = rv64p_li_imm32(ibc.imm);                              \
+        x_tmp1 = rv64_add(*ibc.isrc, x_tmp1);                         \
     }                                                               \
-    int64_t x_tmp2 = rv_li_imm32(ibc.memMask);                      \
-    x_tmp1 = rv_and(x_tmp1, x_tmp2);  /* offset in scratchpad */    \
-    x_tmp1 = rv_add(x_scratchpad, x_tmp1); /* absolute address */   \
-    x_tmp1 = rv_ld(x_tmp1, 0);
+    int64_t x_tmp2 = rv64p_li_imm32(ibc.memMask);                      \
+    x_tmp1 = rv64_and(x_tmp1, x_tmp2);  /* offset in scratchpad */
+
+#define RX_ST_OFFSET \
+    /*uint32_t addr = (*ibc.idst + ibc.imm) & ibc.memMask; */       \
+                                                                    \
+    int64_t x_tmp1; /* (*ibc.idst + ibc.imm) */                     \
+    if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {             \
+        x_tmp1 = rv64_addi(*ibc.idst, low12(ibc.imm));                \
+    } else {                                                        \
+        x_tmp1 = rv64p_li_imm32(ibc.imm);                              \
+        x_tmp1 = rv64_add(*ibc.idst, x_tmp1);                         \
+    }                                                               \
+    int64_t x_tmp2 = rv64p_li_imm32(ibc.memMask);                      \
+    x_tmp1 = rv64_and(x_tmp1, x_tmp2);  /* offset in scratchpad */
+
+
+// auto variable `x_tmp1` holds value from mem
+#define RX_LOAD64 \
+    RX_LD_OFFSET;                                                   \
+    int64_t x_scratchpad = (int64_t)scratchpad;                     \
+    x_tmp1 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */   \
+    x_tmp1 = rv64_ld(x_tmp1, 0);
+
+typedef union{
+    rx_vec_i128 i;
+    rx_vec_f128 d;
+    uint64_t u64[2];
+    double   d64[2];
+    uint32_t u32[4];
+    int i32[4];
+} vec_u;
 #endif
 
 namespace randomx {
@@ -178,18 +207,18 @@ namespace randomx {
 #else
 #if (RV64_INSN_SIM)
             // fixme: it seems signed extended imm32 is always used as uint64_t (i.e., ibc.imm)
-            int64_t x_tmp1 = rv_slli(*ibc.isrc, ibc.shift);
+            int64_t x_tmp1 = rv64_slli(*ibc.isrc, ibc.shift);
             // CSAPP p105: When an operation is performed where one operand is signed
             // and the other is unsigned, C implicitly casts the signed argument to 
             // unsigned and performs the operations assuming the numbers are nonnegative. 
             if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
-                x_tmp1 = rv_addi(x_tmp1, low12(ibc.imm));
+                x_tmp1 = rv64_addi(x_tmp1, low12(ibc.imm));
             }
             else {
-                int64_t x_tmp2 = rv_li_imm32(ibc.imm);
-                x_tmp1 = rv_add(x_tmp1, x_tmp2);
+                int64_t x_tmp2 = rv64p_li_imm32(ibc.imm);
+                x_tmp1 = rv64_add(x_tmp1, x_tmp2);
             }
-            *ibc.idst = rv_add(*ibc.idst, x_tmp1);
+            *ibc.idst = rv64_add(*ibc.idst, x_tmp1);
 #else
 			*ibc.idst += (*ibc.isrc << ibc.shift) + ibc.imm;
 #endif
@@ -198,8 +227,8 @@ namespace randomx {
 
 		static void exe_IADD_M(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            RV_LOAD64;
-            *ibc.idst = rv_add(*ibc.idst, x_tmp1);
+            RX_LOAD64;
+            *ibc.idst = rv64_add(*ibc.idst, x_tmp1);
 #else
             *ibc.idst += load64(getScratchpadAddress(ibc, scratchpad));
 #endif
@@ -207,7 +236,7 @@ namespace randomx {
 
 		static void exe_ISUB_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            *ibc.idst = rv_sub(*ibc.idst, *ibc.isrc);
+            *ibc.idst = rv64_sub(*ibc.idst, *ibc.isrc);
 #else
 			*ibc.idst -= *ibc.isrc;
 #endif
@@ -215,8 +244,8 @@ namespace randomx {
 
 		static void exe_ISUB_M(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            RV_LOAD64;
-            *ibc.idst = rv_sub(*ibc.idst, x_tmp1);
+            RX_LOAD64;
+            *ibc.idst = rv64_sub(*ibc.idst, x_tmp1);
 #else
 			*ibc.idst -= load64(getScratchpadAddress(ibc, scratchpad));
 #endif
@@ -224,7 +253,7 @@ namespace randomx {
 
 		static void exe_IMUL_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            *ibc.idst = rv_mul(*ibc.idst, *ibc.isrc);
+            *ibc.idst = rv64_mul(*ibc.idst, *ibc.isrc);
 #else
 			*ibc.idst *= *ibc.isrc;
 #endif
@@ -232,8 +261,8 @@ namespace randomx {
 
 		static void exe_IMUL_M(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            RV_LOAD64;
-            *ibc.idst = rv_mul(*ibc.idst, x_tmp1);
+            RX_LOAD64;
+            *ibc.idst = rv64_mul(*ibc.idst, x_tmp1);
 #else
 			*ibc.idst *= load64(getScratchpadAddress(ibc, scratchpad));
 #endif
@@ -241,7 +270,7 @@ namespace randomx {
 
 		static void exe_IMULH_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            *ibc.idst = rv_mulhu(*ibc.idst, *ibc.isrc);
+            *ibc.idst = rv64_mulhu(*ibc.idst, *ibc.isrc);
 #else
 			*ibc.idst = mulh(*ibc.idst, *ibc.isrc);
 #endif
@@ -249,8 +278,8 @@ namespace randomx {
 
 		static void exe_IMULH_M(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            RV_LOAD64;
-            *ibc.idst = rv_mulhu(*ibc.idst, x_tmp1);
+            RX_LOAD64;
+            *ibc.idst = rv64_mulhu(*ibc.idst, x_tmp1);
 #else		
 			*ibc.idst = mulh(*ibc.idst, load64(getScratchpadAddress(ibc, scratchpad)));
 #endif
@@ -258,7 +287,7 @@ namespace randomx {
 
 		static void exe_ISMULH_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            *ibc.idst = rv_mulh(*ibc.idst, *ibc.isrc);
+            *ibc.idst = rv64_mulh(*ibc.idst, *ibc.isrc);
 #else		
 			*ibc.idst = smulh(unsigned64ToSigned2sCompl(*ibc.idst), unsigned64ToSigned2sCompl(*ibc.isrc));
 #endif
@@ -266,8 +295,8 @@ namespace randomx {
 
 		static void exe_ISMULH_M(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            RV_LOAD64;
-            *ibc.idst = rv_mulh(*ibc.idst, x_tmp1);
+            RX_LOAD64;
+            *ibc.idst = rv64_mulh(*ibc.idst, x_tmp1);
 #else
 			*ibc.idst = smulh(unsigned64ToSigned2sCompl(*ibc.idst), unsigned64ToSigned2sCompl(load64(getScratchpadAddress(ibc, scratchpad))));
 #endif
@@ -276,7 +305,7 @@ namespace randomx {
 		static void exe_INEG_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
             int64_t x_zero = 0;
-            *ibc.idst = rv_sub(x_zero, *ibc.idst);
+            *ibc.idst = rv64_sub(x_zero, *ibc.idst);
 #else
 			*ibc.idst = ~(*ibc.idst) + 1; //two's complement negative
 #endif			
@@ -284,7 +313,7 @@ namespace randomx {
 
 		static void exe_IXOR_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            *ibc.idst = rv_xor(*ibc.idst, *ibc.isrc);
+            *ibc.idst = rv64_xor(*ibc.idst, *ibc.isrc);
 #else
 			*ibc.idst ^= *ibc.isrc;
 #endif
@@ -292,8 +321,8 @@ namespace randomx {
 
 		static void exe_IXOR_M(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-            RV_LOAD64;
-            *ibc.idst = rv_xor(*ibc.idst, x_tmp1);
+            RX_LOAD64;
+            *ibc.idst = rv64_xor(*ibc.idst, x_tmp1);
 #else
 			*ibc.idst ^= load64(getScratchpadAddress(ibc, scratchpad));
 #endif
@@ -302,11 +331,11 @@ namespace randomx {
 		static void exe_IROR_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
             int64_t x_n64 = 64;
-            int64_t x_tmp1 = rv_andi(*ibc.isrc, 63); // right shamt
-            int64_t x_tmp2 = rv_sub(x_n64, x_tmp1);  // left shamt
-            x_tmp1 = rv_srl(*ibc.idst, x_tmp1);
-            x_tmp2 = rv_sll(*ibc.idst, x_tmp2);
-            *ibc.idst = rv_or(x_tmp1, x_tmp2);
+            int64_t x_tmp1 = rv64_andi(*ibc.isrc, 63); // right shamt
+            int64_t x_tmp2 = rv64_sub(x_n64, x_tmp1);  // left shamt
+            x_tmp1 = rv64_srl(*ibc.idst, x_tmp1);
+            x_tmp2 = rv64_sll(*ibc.idst, x_tmp2);
+            *ibc.idst = rv64_or(x_tmp1, x_tmp2);
 #else
 			*ibc.idst = rotr(*ibc.idst, *ibc.isrc & 63);
 #endif
@@ -315,11 +344,11 @@ namespace randomx {
 		static void exe_IROL_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
             int64_t x_n64 = 64;
-            int64_t x_tmp1 = rv_andi(*ibc.isrc, 63); // left shamt
-            int64_t x_tmp2 = rv_sub(x_n64, x_tmp1);  // right shamt
-            x_tmp1 = rv_sll(*ibc.idst, x_tmp1);
-            x_tmp2 = rv_srl(*ibc.idst, x_tmp2);
-            *ibc.idst = rv_or(x_tmp1, x_tmp2);
+            int64_t x_tmp1 = rv64_andi(*ibc.isrc, 63); // left shamt
+            int64_t x_tmp2 = rv64_sub(x_n64, x_tmp1);  // right shamt
+            x_tmp1 = rv64_sll(*ibc.idst, x_tmp1);
+            x_tmp2 = rv64_srl(*ibc.idst, x_tmp2);
+            *ibc.idst = rv64_or(x_tmp1, x_tmp2);
 #else
 			*ibc.idst = rotl(*ibc.idst, *ibc.isrc & 63);
 #endif
@@ -328,9 +357,9 @@ namespace randomx {
 		static void exe_ISWAP_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
             int64_t x_tmp1;
-            x_tmp1 = rv_addi(*ibc.isrc, 0);
-            *(int_reg_t*)ibc.isrc = rv_addi(*ibc.idst, 0);
-            *ibc.idst = rv_addi(x_tmp1, 0);
+            x_tmp1 = rv64_addi(*ibc.isrc, 0);
+            *(int_reg_t*)ibc.isrc = rv64_addi(*ibc.idst, 0);
+            *ibc.idst = rv64_addi(x_tmp1, 0);
 #else
 			int_reg_t temp = *ibc.isrc;
 			*(int_reg_t*)ibc.isrc = *ibc.idst;
@@ -339,7 +368,16 @@ namespace randomx {
 		}
 
 		static void exe_FSWAP_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
+            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+            int64_t x_tmp1 = rv64_fmv_x_d(*fdst_l);
+            int64_t x_tmp2 = rv64_fmv_x_d(*fdst_h);
+            *fdst_h = rv64_fmv_d_x(x_tmp1);
+            *fdst_l = rv64_fmv_d_x(x_tmp2);
+#else
 			*ibc.fdst = rx_swap_vec_f128(*ibc.fdst);
+#endif
 		}
 
 		static void exe_FADD_R(RANDOMX_EXE_ARGS) {
@@ -393,7 +431,14 @@ namespace randomx {
 		}
 
 		static void exe_ISTORE(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            RX_ST_OFFSET;
+            int64_t x_scratchpad = (int64_t)scratchpad;
+            x_tmp1 = rv64_add(x_scratchpad, x_tmp1); // absolute address
+            rv64_sd(x_tmp1, *ibc.isrc, 0);
+#else
 			store64(scratchpad + ((*ibc.idst + ibc.imm) & ibc.memMask), *ibc.isrc);
+#endif
 		}
 	protected:
 		static rx_vec_f128 maskRegisterExponentMantissa(ProgramConfiguration& config, rx_vec_f128 x) {

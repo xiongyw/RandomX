@@ -61,20 +61,20 @@ int32_t low5(int32_t imm)
 
 ////////////////////////////////////////////////////////////////
 
-int64_t rv_add(int64_t rs1, int64_t rs2)
+int64_t rv64_add(int64_t rs1, int64_t rs2)
 {
     return rs1 + rs2;
 }
 
 // x[rd]=x[rs1]+sext(imm)
-int64_t rv_addi(int64_t rs1, int32_t imm12)
+int64_t rv64_addi(int64_t rs1, int32_t imm12)
 {
     assert(is_nbit_imm(imm12, 12));
     return rs1 + sext(imm12, 11);
 }
 
 // x[rd]=sext(x[rs1]+sext(imm12))[31:0])
-int64_t rv_addiw(int64_t rs1, int32_t imm12)
+int64_t rv64_addiw(int64_t rs1, int32_t imm12)
 {
     assert(is_nbit_imm(imm12, 12));
     int64_t sext_imm12 = sext(imm12, 11);
@@ -84,22 +84,36 @@ int64_t rv_addiw(int64_t rs1, int32_t imm12)
 }
 
 
-int64_t rv_and(int64_t rs1, int64_t rs2)
+int64_t rv64_and(int64_t rs1, int64_t rs2)
 {
     return rs1 & rs2;
 }
 
 // x[rd]=x[rs1] & sext(imm)
-int64_t rv_andi(int64_t rs1, int32_t imm12)
+int64_t rv64_andi(int64_t rs1, int32_t imm12)
 {
     assert(is_nbit_imm(imm12, 12));
     int64_t sext_imm12 = sext(imm12, 11);
     return rs1 & sext_imm12;
 }
 
+double rv64_fmv_d_x(int64_t rs1)
+{
+    double d;
+	memcpy((void*)(&d), (void*)(&rs1), sizeof(rs1));
+    return d;
+}
+
+int64_t rv64_fmv_x_d(double rs1)
+{
+    int64_t i;
+	memcpy((void*)(&i), (void*)(&rs1), sizeof(rs1));
+    return i;
+}
+
 
 // x[rd]=M[x[rs1]+sext(offset)][63:0]
-int64_t rv_ld(int64_t rs1, int32_t imm12)
+int64_t rv64_ld(int64_t rs1, int32_t imm12)
 {
     assert(is_nbit_imm(imm12, 12));
     int64_t addr = rs1 + sext(imm12, 11);
@@ -111,23 +125,24 @@ int64_t rv_ld(int64_t rs1, int32_t imm12)
     return dst;
 }
 
-int64_t rv_li_imm32(int32_t imm32)
+// p means 'pseudo'
+int64_t rv64p_li_imm32(int32_t imm32)
 {
     int64_t dst = 0;
 
     if (imm32 >= -2048 && imm32 <= 2047) {
-        return rv_addi(0, low12(imm32));   // addi dst, x0, imm;
+        return rv64_addi(0, low12(imm32));   // addi dst, x0, imm;
     }
 
     if (low12(imm32) >= 0) {
-        dst = rv_lui(hi20(imm32));  // lui dst, imm20;
+        dst = rv64_lui(hi20(imm32));  // lui dst, imm20;
     } else {
         // now `+1` does not overflow the low 20-bit of hi20(imm32),
         // and lui only uses the low 20-bit of the sum
-        dst = rv_lui(hi20(imm32) + 1); // lui dst, imm20+1;
+        dst = rv64_lui(hi20(imm32) + 1); // lui dst, imm20+1;
     }
 
-    dst = rv_addiw(dst, low12(imm32));  // addiw dst, dst, imm12
+    dst = rv64_addiw(dst, low12(imm32));  // addiw dst, dst, imm12
 
     return dst;
 }
@@ -135,7 +150,7 @@ int64_t rv_li_imm32(int32_t imm32)
 
 
 // x[rd]=sext(imm[31:12] << 12)
-int64_t rv_lui(int32_t imm20)
+int64_t rv64_lui(int32_t imm20)
 {
     // don't care the top 12-bit of imm20, which will be discarded anyway
     //assert(is_nbit_imm(imm20, 20));
@@ -146,52 +161,63 @@ int64_t rv_lui(int32_t imm20)
     return tmp;
 }
 
-int64_t rv_mul(int64_t rs1, int64_t rs2)
+int64_t rv64_mul(int64_t rs1, int64_t rs2)
 {
     return rs1 * rs2;
 }
 
-int64_t rv_mulh(int64_t rs1, int64_t rs2)
+int64_t rv64_mulh(int64_t rs1, int64_t rs2)
 {
     return ((int128_t)rs1 * rs2) >> 64;
 }
 
-uint64_t rv_mulhu(uint64_t rs1, uint64_t rs2)
+uint64_t rv64_mulhu(uint64_t rs1, uint64_t rs2)
 {
     return ((uint128_t)rs1 * rs2) >> 64;
 }
 
-int64_t rv_or(int64_t rs1, int64_t rs2)
+int64_t rv64_or(int64_t rs1, int64_t rs2)
 {
     return rs1 | rs2;
 }
 
-int64_t rv_sll(int64_t rs1, int64_t rs2)
+int64_t rv64_sll(int64_t rs1, int64_t rs2)
 {
     return (int64_t)(((uint64_t)rs1) << (rs2 & 63));
 }
 
-int64_t rv_slli(int64_t rs1, uint8_t shamt)
+int64_t rv64_slli(int64_t rs1, uint8_t shamt)
 {
     return (int64_t)(((uint64_t)rs1) << shamt);
 }
 
-int64_t rv_srl(int64_t rs1, int64_t rs2)
+int64_t rv64_srl(int64_t rs1, int64_t rs2)
 {
     return (int64_t)(((uint64_t)rs1) >> (rs2 & 63));
 }
 
-int64_t rv_srli(int64_t rs1, uint8_t shamt)
+int64_t rv64_srli(int64_t rs1, uint8_t shamt)
 {
     return (int64_t)(((uint64_t)rs1) >> shamt);
 }
 
-int64_t rv_sub(int64_t rs1, int64_t rs2)
+// M[x[rs1]+sext(offset)]=rs2[63:0]
+void rv64_sd(int64_t rs1, int64_t rs2, int32_t imm12)
+{
+    assert(is_nbit_imm(imm12, 12));
+    int64_t addr = rs1 + sext(imm12, 11);
+    assert(addr > 0);
+    // x86-64 and rv64 are all native little-endian
+	memcpy((void*)addr, (void*)(&rs2), sizeof(rs2));
+}
+
+
+int64_t rv64_sub(int64_t rs1, int64_t rs2)
 {
     return rs1 - rs2;
 }
 
-int64_t rv_xor(int64_t rs1, int64_t rs2)
+int64_t rv64_xor(int64_t rs1, int64_t rs2)
 {
     return rs1 ^ rs2;
 }

@@ -59,41 +59,45 @@ int32_t low5(int32_t imm); // shamt
  ******************************************************************************/
 
 
-int64_t rv_add(int64_t rs1, int64_t rs2);
+int64_t rv64_add(int64_t rs1, int64_t rs2);
 
 // x[rd]=x[rs1]+sext(imm)
-int64_t rv_addi(int64_t rs1, int32_t imm12);
+int64_t rv64_addi(int64_t rs1, int32_t imm12);
 
 // x[rd]=sext(x[rs1]+sext(imm12))[31:0])
-int64_t rv_addiw(int64_t rs1, int32_t imm12);
+int64_t rv64_addiw(int64_t rs1, int32_t imm12);
 
-int64_t rv_and(int64_t rs1, int64_t rs2);
-int64_t rv_andi(int64_t rs1, int32_t imm12);
+int64_t rv64_and(int64_t rs1, int64_t rs2);
+int64_t rv64_andi(int64_t rs1, int32_t imm12);
+
+double rv64_fmv_d_x(int64_t rs1);
+int64_t rv64_fmv_x_d(double rs1);
+
+int64_t rv64_ld(int64_t rs1, int32_t imm12);
 
 // psedu-insn `li`. only simulatr `li imm32`, as in randomx imm is always 32-bit
-int64_t rv_li_imm32(int32_t imm32);
+int64_t rv64p_li_imm32(int32_t imm32);
 
-int64_t rv_ld(int64_t rs1, int32_t imm12);
 
 // x[rd]=sext(imm[31:12] << 12)
-int64_t rv_lui(int32_t imm20);
+int64_t rv64_lui(int32_t imm20);
 
-int64_t rv_mul(int64_t rs1, int64_t rs2);
-int64_t rv_mulh(int64_t rs1, int64_t rs2); // signed
-uint64_t rv_mulhu(uint64_t rs1, uint64_t rs2); // unsigned
+int64_t rv64_mul(int64_t rs1, int64_t rs2);
+int64_t rv64_mulh(int64_t rs1, int64_t rs2); // signed
+uint64_t rv64_mulhu(uint64_t rs1, uint64_t rs2); // unsigned
 
-int64_t rv_or(int64_t rs1, int64_t rs2);
+int64_t rv64_or(int64_t rs1, int64_t rs2);
 
-int64_t rv_sll(int64_t rs1, int64_t rs2);
-int64_t rv_slli(int64_t rs1, uint8_t shamt);
-int64_t rv_srl(int64_t rs1, int64_t rs2);
-int64_t rv_srli(int64_t rs1, uint8_t shamt);
+int64_t rv64_sll(int64_t rs1, int64_t rs2);
+int64_t rv64_slli(int64_t rs1, uint8_t shamt);
+int64_t rv64_srl(int64_t rs1, int64_t rs2);
+int64_t rv64_srli(int64_t rs1, uint8_t shamt);
+void rv64_sd(int64_t rs1, int64_t rs2, int32_t imm12);
+int64_t rv64_sub(int64_t rs1, int64_t rs2);
 
-int64_t rv_sub(int64_t rs1, int64_t rs2);
+int64_t rv64_xor(int64_t rs1, int64_t rs2);
 
-int64_t rv_xor(int64_t rs1, int64_t rs2);
-
-
+    
 #if defined(__cplusplus)
 }
 #endif
