@@ -25,6 +25,11 @@ extern "C" {
 #define PRI64(msg, name, value)
 #endif
 
+/* gcc extension */
+typedef unsigned __int128 uint128_t;
+typedef __int128 int128_t;
+
+
 /*******************************************************************************
  *
  * utilities
@@ -72,7 +77,13 @@ int64_t rv_ld(int64_t rs1, int32_t imm12);
 // x[rd]=sext(imm[31:12] << 12)
 int64_t rv_lui(int32_t imm20);
 
+int64_t rv_mul(int64_t rs1, int64_t rs2);
+int64_t rv_mulh(int64_t rs1, int64_t rs2); // signed
+uint64_t rv_mulhu(uint64_t rs1, uint64_t rs2); // unsigned
+
 int64_t rv_slli(int64_t rs1, uint8_t shamt);
+
+int64_t rv_sub(int64_t rs1, int64_t rs2);
 
 
 #if defined(__cplusplus)

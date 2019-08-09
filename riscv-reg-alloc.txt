@@ -20,8 +20,8 @@
     |  t1   |  6  | memory registers "ma" (high 32 bits), "mx" (low 32 bits)     |
     |  t2   |  7  | scratchpad pointer                                           |
     |  t3   | 28  | iteration counter "ic"                                       |
-    |  t4   | 29  | tmp1                                                         |
-    |  t5   | 30  | tmp2                                                         |
+    |  t4   | 29  | x_tmp1                                                       |
+    |  t5   | 30  | x_tmp2                                                       |
     |  t6   | 31  | 0x3f, 6-bit mask used in IROR_R/IROL_R/IROR_C                |
     |       |     |                                                              |
     | s0/fp |  8  |                                                              |
@@ -82,11 +82,11 @@
     |  fs6  | 22  | "ah2", need save                                             |
     |  fs7  | 23  | "ah3", need save                                             |
     |             |                                                              |
-    |  ft8  | 28  | low-64 of temporary                                          |
+    |  ft8  | 28  | fl_tmp: low-64 of temporary                                  |
     |  ft9  | 29  | low-64 of E 'and' mask = 0x00ffffffffffffff00ffffffffffffff  |
     |  ft10 | 30  | low-64 of E 'or' mask  = 0x3*00000000******3*00000000******  |
     |  ft11 | 31  | low-64 of scale mask = 0x81f000000000000081f0000000000000    |
-    |  fs8  | 24  | hi-64 of temporary                                           |
+    |  fs8  | 24  | fh_tmp: hi-64 of temporary                                   |
     |  fs9  | 25  | hi-64 of E 'and' mask                                        |
     |  fs10 | 26  | hi-64 of E 'or' mask                                         |
     |  fs11 | 27  | hi-64 of scale mask                                          |

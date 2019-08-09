@@ -124,11 +124,6 @@ int64_t rv_li_imm32(int32_t imm32)
 }
 
 
-int64_t rv_slli(int64_t rs1, uint8_t shamt)
-{
-    return rs1 << shamt;
-}
-
 
 // x[rd]=sext(imm[31:12] << 12)
 int64_t rv_lui(int32_t imm20)
@@ -142,4 +137,28 @@ int64_t rv_lui(int32_t imm20)
     return tmp;
 }
 
+int64_t rv_mul(int64_t rs1, int64_t rs2)
+{
+    return rs1 * rs2;
+}
+
+int64_t rv_mulh(int64_t rs1, int64_t rs2)
+{
+    return ((int128_t)rs1 * rs2) >> 64;
+}
+
+uint64_t rv_mulhu(uint64_t rs1, uint64_t rs2)
+{
+    return ((uint128_t)rs1 * rs2) >> 64;
+}
+
+int64_t rv_slli(int64_t rs1, uint8_t shamt)
+{
+    return rs1 << shamt;
+}
+
+int64_t rv_sub(int64_t rs1, int64_t rs2)
+{
+    return rs1 - rs2;
+}
 
