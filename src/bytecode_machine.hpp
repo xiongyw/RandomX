@@ -274,29 +274,68 @@ namespace randomx {
 		}
 
 		static void exe_INEG_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            int64_t x_zero = 0;
+            *ibc.idst = rv_sub(x_zero, *ibc.idst);
+#else
 			*ibc.idst = ~(*ibc.idst) + 1; //two's complement negative
+#endif			
 		}
 
 		static void exe_IXOR_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            *ibc.idst = rv_xor(*ibc.idst, *ibc.isrc);
+#else
 			*ibc.idst ^= *ibc.isrc;
+#endif
 		}
 
 		static void exe_IXOR_M(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            RV_LOAD64;
+            *ibc.idst = rv_xor(*ibc.idst, x_tmp1);
+#else
 			*ibc.idst ^= load64(getScratchpadAddress(ibc, scratchpad));
+#endif
 		}
 
 		static void exe_IROR_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            int64_t x_n64 = 64;
+            int64_t x_tmp1 = rv_andi(*ibc.isrc, 63); // right shamt
+            int64_t x_tmp2 = rv_sub(x_n64, x_tmp1);  // left shamt
+            x_tmp1 = rv_srl(*ibc.idst, x_tmp1);
+            x_tmp2 = rv_sll(*ibc.idst, x_tmp2);
+            *ibc.idst = rv_or(x_tmp1, x_tmp2);
+#else
 			*ibc.idst = rotr(*ibc.idst, *ibc.isrc & 63);
+#endif
 		}
 
 		static void exe_IROL_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            int64_t x_n64 = 64;
+            int64_t x_tmp1 = rv_andi(*ibc.isrc, 63); // left shamt
+            int64_t x_tmp2 = rv_sub(x_n64, x_tmp1);  // right shamt
+            x_tmp1 = rv_sll(*ibc.idst, x_tmp1);
+            x_tmp2 = rv_srl(*ibc.idst, x_tmp2);
+            *ibc.idst = rv_or(x_tmp1, x_tmp2);
+#else
 			*ibc.idst = rotl(*ibc.idst, *ibc.isrc & 63);
+#endif
 		}
 
 		static void exe_ISWAP_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            int64_t x_tmp1;
+            x_tmp1 = rv_addi(*ibc.isrc, 0);
+            *(int_reg_t*)ibc.isrc = rv_addi(*ibc.idst, 0);
+            *ibc.idst = rv_addi(x_tmp1, 0);
+#else
 			int_reg_t temp = *ibc.isrc;
 			*(int_reg_t*)ibc.isrc = *ibc.idst;
 			*ibc.idst = temp;
+#endif            
 		}
 
 		static void exe_FSWAP_R(RANDOMX_EXE_ARGS) {

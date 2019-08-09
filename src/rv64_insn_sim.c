@@ -89,6 +89,15 @@ int64_t rv_and(int64_t rs1, int64_t rs2)
     return rs1 & rs2;
 }
 
+// x[rd]=x[rs1] & sext(imm)
+int64_t rv_andi(int64_t rs1, int32_t imm12)
+{
+    assert(is_nbit_imm(imm12, 12));
+    int64_t sext_imm12 = sext(imm12, 11);
+    return rs1 & sext_imm12;
+}
+
+
 // x[rd]=M[x[rs1]+sext(offset)][63:0]
 int64_t rv_ld(int64_t rs1, int32_t imm12)
 {
@@ -152,9 +161,29 @@ uint64_t rv_mulhu(uint64_t rs1, uint64_t rs2)
     return ((uint128_t)rs1 * rs2) >> 64;
 }
 
+int64_t rv_or(int64_t rs1, int64_t rs2)
+{
+    return rs1 | rs2;
+}
+
+int64_t rv_sll(int64_t rs1, int64_t rs2)
+{
+    return (int64_t)(((uint64_t)rs1) << (rs2 & 63));
+}
+
 int64_t rv_slli(int64_t rs1, uint8_t shamt)
 {
-    return rs1 << shamt;
+    return (int64_t)(((uint64_t)rs1) << shamt);
+}
+
+int64_t rv_srl(int64_t rs1, int64_t rs2)
+{
+    return (int64_t)(((uint64_t)rs1) >> (rs2 & 63));
+}
+
+int64_t rv_srli(int64_t rs1, uint8_t shamt)
+{
+    return (int64_t)(((uint64_t)rs1) >> shamt);
 }
 
 int64_t rv_sub(int64_t rs1, int64_t rs2)
@@ -162,3 +191,7 @@ int64_t rv_sub(int64_t rs1, int64_t rs2)
     return rs1 - rs2;
 }
 
+int64_t rv_xor(int64_t rs1, int64_t rs2)
+{
+    return rs1 ^ rs2;
+}

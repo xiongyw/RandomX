@@ -68,6 +68,7 @@ int64_t rv_addi(int64_t rs1, int32_t imm12);
 int64_t rv_addiw(int64_t rs1, int32_t imm12);
 
 int64_t rv_and(int64_t rs1, int64_t rs2);
+int64_t rv_andi(int64_t rs1, int32_t imm12);
 
 // psedu-insn `li`. only simulatr `li imm32`, as in randomx imm is always 32-bit
 int64_t rv_li_imm32(int32_t imm32);
@@ -81,9 +82,16 @@ int64_t rv_mul(int64_t rs1, int64_t rs2);
 int64_t rv_mulh(int64_t rs1, int64_t rs2); // signed
 uint64_t rv_mulhu(uint64_t rs1, uint64_t rs2); // unsigned
 
+int64_t rv_or(int64_t rs1, int64_t rs2);
+
+int64_t rv_sll(int64_t rs1, int64_t rs2);
 int64_t rv_slli(int64_t rs1, uint8_t shamt);
+int64_t rv_srl(int64_t rs1, int64_t rs2);
+int64_t rv_srli(int64_t rs1, uint8_t shamt);
 
 int64_t rv_sub(int64_t rs1, int64_t rs2);
+
+int64_t rv_xor(int64_t rs1, int64_t rs2);
 
 
 #if defined(__cplusplus)
