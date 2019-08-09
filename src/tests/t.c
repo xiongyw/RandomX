@@ -92,15 +92,17 @@ int32_t low12(int32_t imm)
 // x[rd]=sext(imm[31:12] << 12)
 int64_t lui(int32_t imm20)
 {
-    assert(is_nbit_imm(imm20, 20));
+    // don't care the top 12-bit of imm20, which will be discarded anyway
+    //assert(is_nbit_imm(imm20, 20));
+
     PRI32("lui()", imm20, imm20);
     int64_t tmp = sext(((uint64_t)imm20) << 12, 31);
     PRI64("lui()", tmp, tmp);
     return tmp;
 }
 
-// x[rd]=sext(x[rs1]+sext(imm12))[31:0]
-int32_t addiw(int64_t rs1, int32_t imm12)
+// x[rd]=sext(x[rs1]+sext(imm12))[31:0])
+int64_t addiw(int64_t rs1, int32_t imm12)
 {
     assert(is_nbit_imm(imm12, 12));
     PRI64("addiw()", rs1, rs1);
@@ -111,7 +113,14 @@ int32_t addiw(int64_t rs1, int32_t imm12)
     PRI64("addiw()", sext_imm12, sext_imm12);
     int32_t trunc32 = (int32_t)(sext_imm12 & 0xffffffff);
     PRI32("addiw()", trunc32, trunc32);
-    return trunc32;
+    return sext(trunc32, 31);
+}
+
+// x[rd]=x[rs1]+sext(imm)
+int64_t addi(int64_t rs1, int32_t imm12)
+{
+    assert(is_nbit_imm(imm12, 12));
+    return rs1 + sext(imm12, 11);
 }
 
 // simulate `li imm32`, as in randomx imm is only 32-bit
@@ -119,33 +128,19 @@ int64_t li_imm32(int32_t imm32)
 {
     int64_t dst = 0;
 
-    if (imm32 < 0) {  // negative
-        if (low12(imm32) < 0) {
-            // hi20(imm32) < 0, so +1 will not overflow 20-bit
-            dst = lui(hi20(imm32) + 1);
-        } else {
-            dst = lui(hi20(imm32));
-        }
-        PRI64("li_imm32()", dst, dst);
-        dst = addiw(dst, low12(imm32));
-        PRI64("li_imm32()", dst, dst);
+    if (imm32 >= -2048 && imm32 <= 2047) {
+        return addi(0, low12(imm32));   // addi dst, x0, imm;
     }
-#if (0)
-    else {  // non-negative
-        if (imm32 <= 0x7ff) {
-            dst = imm32;                                // addi dst, x0, imm;
-        } else {
-            if (low12(imm32) >= 0) {
-                dst = (int32_t)(hi20(imm32) << 12);    // lui dst, imm20;
-            } else {
-                dst = (int32_t)((hi20(imm32) + 1) << 12);  // lui dst, imm20+1;
-            }
-            printf("dst= %"PRId64"(%"PRIx64")\n", dst, dst);
-            dst += low12(imm32);                    // addiw dst, imm12;
-            printf("dst= %"PRId64"(%"PRIx64")\n", dst, dst);
-        }
+
+    if (low12(imm32) >= 0) {
+        dst = lui(hi20(imm32));  // lui dst, imm20;
+    } else {
+        // now `+1` does not overflow the low 20-bit of hi20(imm32),
+        // and lui only uses the low 20-bit of the sum
+        dst = lui(hi20(imm32) + 1); // lui dst, imm20+1;
     }
-#endif
+
+    dst = addiw(dst, low12(imm32));  // addiw dst, dst, imm12
 
     return dst;
 }
@@ -161,12 +156,12 @@ int main(void)
     // dasm: riscv64-unknown-linux-gnu-objdump -S -Mno-aliases,numeric t.o
     // run: spike pk t
 //#define IMM   0x80000801
-#define IMM   0x80000000
+#define IMM   0xfffff800
     asm volatile("li %[dst], %[imm]" : [dst]"=r"(dst) : [imm]"i"(IMM));
     printf("dst= %"PRId64"(%"PRIx64")\n", dst, dst);
     printf("sext=%"PRId64"(%"PRIx64")\n", sext(IMM, 31), sext(IMM, 31));
 #else
-    for (imm32 = (int32_t)(0x80000000); imm32 < (int32_t)0/*x7fffffff*/; ++ imm32) {
+    for (imm32 = 0x80000000; imm32 <= 0x7fffffff; ++ imm32) {
         PRI32("main()", imm32, imm32);
         dst = li_imm32(imm32);
         if (imm32 != dst) {
@@ -175,6 +170,7 @@ int main(void)
             exit(1);
         };
     }
+    printf("ok\n");
 #endif
 
     return 0;

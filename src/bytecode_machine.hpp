@@ -33,6 +33,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "instruction.hpp"
 #include "program.hpp"
 
+#include "rv64_insn_sim.h"
+
+#define RV64_INSN_SIM   1
+
 namespace randomx {
 
 	//register file in machine byte order
@@ -144,7 +148,7 @@ namespace randomx {
 
 		static void exe_IADD_RS(RANDOMX_EXE_ARGS) {
 #if defined(__riscv)
-            int tmp0, tmp1;
+            int64_t tmp0, tmp1;
             asm volatile (
                 "mv %[tmp0], %[imm];"
                 "sll %[tmp1], %[src], %[shift];"
@@ -154,7 +158,20 @@ namespace randomx {
                 : [tmp0]"r"(tmp0), [tmp1]"r"(tmp1), [imm]"r"(ibc.imm), [src]"r"(*ibc.isrc), [shift]"r"(ibc.shift)
             );
 #else
+#if (RV64_INSN_SIM)
+            // fixme: it seems signed extended imm32 is always used as uint64_t (i.e., ibc.imm)
+            int64_t tmp1 = slli(*ibc.isrc, ibc.shift);
+            if (ibc.imm <= 2047) {
+                tmp1 = addi(tmp1, low12(ibc.imm));
+            }
+            else {
+                int64_t tmp2 = li_imm32(ibc.imm);
+                tmp1 = add(tmp1, tmp2);
+            }
+            *ibc.idst = add(*ibc.idst, tmp1);
+#else
 			*ibc.idst += (*ibc.isrc << ibc.shift) + ibc.imm;
+#endif
 #endif
 		}
 

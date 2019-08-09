@@ -53,7 +53,8 @@ src/instructions_portable.cpp
 src/reciprocal.c
 src/virtual_machine.cpp
 src/vm_compiled_light.cpp
-src/blake2/blake2b.c)
+src/blake2/blake2b.c
+src/rv64_insn_sim.c)
 
 
 if(NOT ARCH_ID)

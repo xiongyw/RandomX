@@ -28,6 +28,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "bytecode_machine.hpp"
 #include "reciprocal.h"
+#include "rv64_insn_sim.h"
 
 namespace randomx {
 
