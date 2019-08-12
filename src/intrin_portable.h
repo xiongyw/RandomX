@@ -167,12 +167,15 @@ FORCE_INLINE rx_vec_f128 rx_cvt_packed_int_vec_f128(const void* addr) {
 constexpr uint32_t rx_mxcsr_default = 0x9FC0; //Flush to zero, denormals are zero, default rounding mode, all exceptions disabled
 
 FORCE_INLINE void rx_reset_float_state() {
+#if RV64_INSN_SIM
+                rv64p_fsrm(RV_FRM_RNE);
+#endif
 	_mm_setcsr(rx_mxcsr_default);
 }
 
 FORCE_INLINE void rx_set_rounding_mode(uint32_t mode) {
 
-#if RV64_INSN_SIM
+#if 1 // RV64_INSN_SIM
         switch (mode & 3) {
             case RoundDown:
                 rv64p_fsrm(RV_FRM_RDN);
@@ -189,9 +192,8 @@ FORCE_INLINE void rx_set_rounding_mode(uint32_t mode) {
             default:
                 __builtin_unreachable();
         }
-#else
-	_mm_setcsr(rx_mxcsr_default | (mode << 13));
 #endif
+	_mm_setcsr(rx_mxcsr_default | (mode << 13));
 }
 
 #elif defined(__PPC64__) && defined(__ALTIVEC__) && defined(__VSX__) //sadly only POWER7 and newer will be able to use SIMD acceleration. Earlier processors cant use doubles or 64 bit integers with SIMD

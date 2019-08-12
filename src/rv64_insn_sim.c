@@ -122,10 +122,10 @@ double rv64_fadd_d(double rs1, double rs2)
 
     // do calculations
     double dst = rs1 + rs2;
-    
+
     // restore the original mode afterwards
     fesetround(originalRounding);
-    
+
 #pragma STDC FENV_ACCESS OFF
 
     return dst;
@@ -167,7 +167,7 @@ int64_t rv64p_frrm(void)
 // pseudo-instruction: set round mode, expand to `csrrw rd, frm, rs1`
 void rv64p_fsrm(int64_t rs)
 {
-    printf("rv64p_fsrm(): rs=%ld ", rs); fflush(stdout);
+    //printf("rv64p_fsrm(): rs=%ld ", rs); fflush(stdout);
     s_frm = (uint8_t)rs;
 }
 
@@ -190,10 +190,10 @@ double rv64_fsub_d(double rs1, double rs2)
 
     // do calculations
     double dst = rs1 - rs2;
-    
+
     // restore the original mode afterwards
     fesetround(originalRounding);
-    
+
 #pragma STDC FENV_ACCESS OFF
 
     return dst;

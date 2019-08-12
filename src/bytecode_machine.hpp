@@ -73,7 +73,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     x_tmp1 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */   \
     x_tmp1 = rv64_ld(x_tmp1, 0);
 
-    
+
 typedef union{
     rx_vec_i128 i;
     rx_vec_f128 d;
@@ -209,8 +209,8 @@ namespace randomx {
             // fixme: it seems signed extended imm32 is always used as uint64_t (i.e., ibc.imm)
             int64_t x_tmp1 = rv64_slli(*ibc.isrc, ibc.shift);
             // CSAPP p105: When an operation is performed where one operand is signed
-            // and the other is unsigned, C implicitly casts the signed argument to 
-            // unsigned and performs the operations assuming the numbers are nonnegative. 
+            // and the other is unsigned, C implicitly casts the signed argument to
+            // unsigned and performs the operations assuming the numbers are nonnegative.
             if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
                 x_tmp1 = rv64_addi(x_tmp1, low12(ibc.imm));
             }
@@ -280,7 +280,7 @@ namespace randomx {
 #if (RV64_INSN_SIM)
             RX_LOAD64;
             *ibc.idst = rv64_mulhu(*ibc.idst, x_tmp1);
-#else		
+#else
 			*ibc.idst = mulh(*ibc.idst, load64(getScratchpadAddress(ibc, scratchpad)));
 #endif
 		}
@@ -288,7 +288,7 @@ namespace randomx {
 		static void exe_ISMULH_R(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
             *ibc.idst = rv64_mulh(*ibc.idst, *ibc.isrc);
-#else		
+#else
 			*ibc.idst = smulh(unsigned64ToSigned2sCompl(*ibc.idst), unsigned64ToSigned2sCompl(*ibc.isrc));
 #endif
 		}
@@ -308,7 +308,7 @@ namespace randomx {
             *ibc.idst = rv64_sub(x_zero, *ibc.idst);
 #else
 			*ibc.idst = ~(*ibc.idst) + 1; //two's complement negative
-#endif			
+#endif
 		}
 
 		static void exe_IXOR_R(RANDOMX_EXE_ARGS) {
@@ -364,7 +364,7 @@ namespace randomx {
 			int_reg_t temp = *ibc.isrc;
 			*(int_reg_t*)ibc.isrc = *ibc.idst;
 			*ibc.idst = temp;
-#endif            
+#endif
 		}
 
 		static void exe_FSWAP_R(RANDOMX_EXE_ARGS) {
@@ -408,10 +408,10 @@ namespace randomx {
             double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
             *fdst_l = rv64_fadd_d(*fdst_l, *fl_tmp);
             *fdst_h = rv64_fadd_d(*fdst_h, *fh_tmp);
-#else            
+#else
 			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad));
 			*ibc.fdst = rx_add_vec_f128(*ibc.fdst, fsrc);
-#endif            
+#endif
 		}
 
 		static void exe_FSUB_R(RANDOMX_EXE_ARGS) {
@@ -442,10 +442,10 @@ namespace randomx {
             double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
             *fdst_l = rv64_fsub_d(*fdst_l, *fl_tmp);
             *fdst_h = rv64_fsub_d(*fdst_h, *fh_tmp);
-#else            
+#else
 			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad));
 			*ibc.fdst = rx_sub_vec_f128(*ibc.fdst, fsrc);
-#endif            
+#endif
 		}
 
 		static void exe_FSCAL_R(RANDOMX_EXE_ARGS) {
@@ -463,7 +463,7 @@ namespace randomx {
 #else
 			const rx_vec_f128 mask = rx_set1_vec_f128(0x80F0000000000000);
 			*ibc.fdst = rx_xor_vec_f128(*ibc.fdst, mask);
-#endif            
+#endif
 		}
 
 		static void exe_FMUL_R(RANDOMX_EXE_ARGS) {
@@ -491,8 +491,8 @@ namespace randomx {
 
 		static void exe_CFROUND(RANDOMX_EXE_ARGS) {
 #if (RV64_INSN_SIM)
-			uint64_t frm = rotr(*ibc.isrc, ibc.imm) % 4;
-            std::cout << "golden RX frm=" << frm << std::endl;
+            //uint64_t frm = rotr(*ibc.isrc, ibc.imm) % 4;
+            //std::cout << std::endl << "CFROUND(): golden RX frm=" << frm;
 
             // right rotate `src` by `imm32`
             int64_t x_zero = 0;
@@ -506,7 +506,7 @@ namespace randomx {
             // clear high 62-bit to get the round mode
             x_tmp1 = rv64_andi(x_tmp1, 0x3);
 
-            std::cout << "frm=" << x_tmp1 << std::endl;
+            //std::cout << ", simulated frm=" << x_tmp1 << std::endl;
 
             // map randomx round mode to risc-v round mode:
             // 0: RV_FRM_RNE (0)
@@ -523,9 +523,8 @@ namespace randomx {
 
             // set frm
             rv64p_fsrm(x_tmp1);
-#else
-			rx_set_rounding_mode(rotr(*ibc.isrc, ibc.imm) % 4);
 #endif
+			rx_set_rounding_mode(rotr(*ibc.isrc, ibc.imm) % 4);
 		}
 
 		static void exe_ISTORE(RANDOMX_EXE_ARGS) {
