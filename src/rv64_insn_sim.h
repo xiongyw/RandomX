@@ -13,6 +13,7 @@
 extern "C" {
 #endif
 
+#define RV64_INSN_SIM   1
 
 
 #define DEBUG 0
@@ -28,6 +29,14 @@ extern "C" {
 /* gcc extension */
 typedef unsigned __int128 uint128_t;
 typedef __int128 int128_t;
+
+/* frm: fp rounding mode for risc-v */
+#define RV_FRM_RNE  0   // Round to Nearest, ties to Even
+#define RV_FRM_RTZ  1   // Round Towards Zero
+#define RV_FRM_RDN  2   // Round DowN (towards -infinity)
+#define RV_FRM_RUP  3   // Round UP (towards +infinity)
+#define RV_FRM_RMM  4   // Round to Nearest, ties to Max Magnitude
+#define RV_FRM_DYN  7   // DYNamic: use `rm` field of the instruction
 
 
 /*******************************************************************************
@@ -70,8 +79,15 @@ int64_t rv64_addiw(int64_t rs1, int32_t imm12);
 int64_t rv64_and(int64_t rs1, int64_t rs2);
 int64_t rv64_andi(int64_t rs1, int32_t imm12);
 
+double rv64_fadd_d(double rs1, double rs2);
+double rv64_fld(int64_t rs1, int32_t imm12);
+
 double rv64_fmv_d_x(int64_t rs1);
 int64_t rv64_fmv_x_d(double rs1);
+
+int64_t rv64p_frrm(void);     // read round mode
+void rv64p_fsrm(int64_t rs);  // set round mode
+double rv64_fsub_d(double rs1, double rs2);
 
 int64_t rv64_ld(int64_t rs1, int32_t imm12);
 

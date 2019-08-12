@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "intrin_portable.h"
 #include "blake2/endian.h"
 
+
 #if defined(__SIZEOF_INT128__)
 	typedef unsigned __int128 uint128_t;
 	typedef __int128 int128_t;
@@ -139,6 +140,26 @@ void rx_reset_float_state() {
 }
 
 void rx_set_rounding_mode(uint32_t mode) {
+
+#include "rv64_insn_sim.h"
+#if RV64_INSN_SIM
+    switch (mode & 3) {
+        case RoundDown:
+            rv64p_fsrm(RV_FRM_RDN);
+            break;
+        case RoundUp:
+            rv64p_fsrm(RV_FRM_RUP);
+            break;
+        case RoundToZero:
+            rv64p_fsrm(RV_FRM_RTZ);
+            break;
+        case RoundToNearest:
+            rv64p_fsrm(RV_FRM_RNE);
+            break;
+        default:
+            UNREACHABLE;
+    }
+#else
 	switch (mode & 3) {
 	case RoundDown:
 		setRoundMode_(FE_DOWNWARD);
@@ -155,6 +176,7 @@ void rx_set_rounding_mode(uint32_t mode) {
 	default:
 		UNREACHABLE;
 	}
+#endif    
 }
 
 #endif

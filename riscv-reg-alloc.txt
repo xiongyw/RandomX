@@ -28,7 +28,7 @@
     |  s1   |  9  | L1 Mask, need save                                           |
     |  s2   | 18  | L2 Mask, need save                                           |
     |  s3   | 19  | L3 Mask, need save                                           |
-    |  s4   | 20  |                                                              |
+    |  s4   | 20  | x_scale_mask: 64-bit scale mask (0x80f0000000000000)         |
     |  s5   | 21  |                                                              |
     |  s6   | 22  |                                                              |
     |  s7   | 23  |                                                              |
@@ -85,11 +85,11 @@
     |  ft8  | 28  | fl_tmp: low-64 of temporary                                  |
     |  ft9  | 29  | low-64 of E 'and' mask = 0x00ffffffffffffff00ffffffffffffff  |
     |  ft10 | 30  | low-64 of E 'or' mask  = 0x3*00000000******3*00000000******  |
-    |  ft11 | 31  | low-64 of scale mask = 0x81f000000000000081f0000000000000    |
+    |  ft11 | 31  |                                                              |
     |  fs8  | 24  | fh_tmp: hi-64 of temporary                                   |
     |  fs9  | 25  | hi-64 of E 'and' mask                                        |
     |  fs10 | 26  | hi-64 of E 'or' mask                                         |
-    |  fs11 | 27  | hi-64 of scale mask                                          |
+    |  fs11 | 27  |                                                              |
     +-------+-----+--------------------------------------------------------------+
 
   NB: "need save" is for abi call

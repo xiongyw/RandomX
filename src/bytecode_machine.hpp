@@ -35,7 +35,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "rv64_insn_sim.h"
 
-#define RV64_INSN_SIM   1
 
 #if (RV64_INSN_SIM)
 
@@ -74,10 +73,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     x_tmp1 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */   \
     x_tmp1 = rv64_ld(x_tmp1, 0);
 
+    
 typedef union{
     rx_vec_i128 i;
     rx_vec_f128 d;
-    uint64_t u64[2];
+    uint64_t u64[2]; // 0: low 64-bit; 1: hi 64-bit
     double   d64[2];
     uint32_t u32[4];
     int i32[4];
@@ -381,26 +381,89 @@ namespace randomx {
 		}
 
 		static void exe_FADD_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
+            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+            double* fsrc_l = &(((vec_u*)ibc.fsrc)->d64[0]);
+            double* fsrc_h = &(((vec_u*)ibc.fsrc)->d64[1]);
+            *fdst_l = rv64_fadd_d(*fdst_l, *fsrc_l);
+            *fdst_h = rv64_fadd_d(*fdst_h, *fsrc_h);
+#else
 			*ibc.fdst = rx_add_vec_f128(*ibc.fdst, *ibc.fsrc);
+#endif
 		}
 
 		static void exe_FADD_M(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            RX_LD_OFFSET;
+            int64_t x_scratchpad = (int64_t)scratchpad;
+            x_tmp1 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */
+
+            // fixme: simulate `fld` instruction using `rx_cvt_packed_int_vec_f128()`
+			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128((void*)x_tmp1);
+
+            double* fl_tmp = &(((vec_u*)&fsrc)->d64[0]);
+            double* fh_tmp = &(((vec_u*)&fsrc)->d64[1]);
+            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
+            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+            *fdst_l = rv64_fadd_d(*fdst_l, *fl_tmp);
+            *fdst_h = rv64_fadd_d(*fdst_h, *fh_tmp);
+#else            
 			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad));
 			*ibc.fdst = rx_add_vec_f128(*ibc.fdst, fsrc);
+#endif            
 		}
 
 		static void exe_FSUB_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+                        double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
+                        double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+                        double* fsrc_l = &(((vec_u*)ibc.fsrc)->d64[0]);
+                        double* fsrc_h = &(((vec_u*)ibc.fsrc)->d64[1]);
+                        *fdst_l = rv64_fsub_d(*fdst_l, *fsrc_l);
+                        *fdst_h = rv64_fsub_d(*fdst_h, *fsrc_h);
+#else
 			*ibc.fdst = rx_sub_vec_f128(*ibc.fdst, *ibc.fsrc);
+#endif
 		}
 
 		static void exe_FSUB_M(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            RX_LD_OFFSET;
+            int64_t x_scratchpad = (int64_t)scratchpad;
+            x_tmp1 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */
+
+            // fixme: simulate `fld` instruction using `rx_cvt_packed_int_vec_f128()`
+            rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128((void*)x_tmp1);
+
+            double* fl_tmp = &(((vec_u*)&fsrc)->d64[0]);
+            double* fh_tmp = &(((vec_u*)&fsrc)->d64[1]);
+            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
+            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+            *fdst_l = rv64_fsub_d(*fdst_l, *fl_tmp);
+            *fdst_h = rv64_fsub_d(*fdst_h, *fh_tmp);
+#else            
 			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad));
 			*ibc.fdst = rx_sub_vec_f128(*ibc.fdst, fsrc);
+#endif            
 		}
 
 		static void exe_FSCAL_R(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+            int64_t x_scale_mask = 0x80F0000000000000;
+            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
+            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+
+            int64_t x_tmp1 = rv64_fmv_x_d(*fdst_l);
+            int64_t x_tmp2 = rv64_fmv_x_d(*fdst_h);
+            x_tmp1 = rv64_xor(x_tmp1, x_scale_mask);
+            x_tmp2 = rv64_xor(x_tmp2, x_scale_mask);
+            *fdst_l = rv64_fmv_d_x(x_tmp1);
+            *fdst_h = rv64_fmv_d_x(x_tmp2);
+#else
 			const rx_vec_f128 mask = rx_set1_vec_f128(0x80F0000000000000);
 			*ibc.fdst = rx_xor_vec_f128(*ibc.fdst, mask);
+#endif            
 		}
 
 		static void exe_FMUL_R(RANDOMX_EXE_ARGS) {
@@ -427,7 +490,42 @@ namespace randomx {
 		}
 
 		static void exe_CFROUND(RANDOMX_EXE_ARGS) {
+#if (RV64_INSN_SIM)
+			uint64_t frm = rotr(*ibc.isrc, ibc.imm) % 4;
+            std::cout << "golden RX frm=" << frm << std::endl;
+
+            // right rotate `src` by `imm32`
+            int64_t x_zero = 0;
+            int64_t x_n64 = 64;
+            int64_t x_tmp1 = rv64_andi(ibc.imm, 63);  // right shamt
+            int64_t x_tmp2 = rv64_sub(x_n64, x_tmp1); // left shamt
+            x_tmp1 = rv64_srl(*ibc.isrc, x_tmp1);
+            x_tmp2 = rv64_sll(*ibc.isrc, x_tmp2);
+            x_tmp1 = rv64_or(x_tmp1, x_tmp2);
+
+            // clear high 62-bit to get the round mode
+            x_tmp1 = rv64_andi(x_tmp1, 0x3);
+
+            std::cout << "frm=" << x_tmp1 << std::endl;
+
+            // map randomx round mode to risc-v round mode:
+            // 0: RV_FRM_RNE (0)
+            // 1: RV_FRM_RDN (2)
+            // 2: RV_FRM_RUP (3)
+            // 3: RV_FRM_RTZ (1)
+
+            if (x_tmp1 != 0) {  // fixme: change comparison to RISC-V instructions
+                if (x_tmp1 < 3)
+                    x_tmp1 = rv64_addi(x_tmp1, 1);
+                else
+                    x_tmp1 = rv64_addi(x_zero, 1);
+            }
+
+            // set frm
+            rv64p_fsrm(x_tmp1);
+#else
 			rx_set_rounding_mode(rotr(*ibc.isrc, ibc.imm) % 4);
+#endif
 		}
 
 		static void exe_ISTORE(RANDOMX_EXE_ARGS) {

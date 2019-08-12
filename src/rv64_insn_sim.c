@@ -6,7 +6,13 @@
 //#define NDEBUG
 #include <assert.h>
 
+// <https://stackoverflow.com/questions/6867693/change-floating-point-rounding-mode>
+#include <fenv.h>
+
+
 #include "rv64_insn_sim.h"
+
+static uint8_t s_frm = 0; // floating-point rounding mode
 
 int is_nbit_imm(int32_t imm, uint8_t n)
 {
@@ -97,6 +103,47 @@ int64_t rv64_andi(int64_t rs1, int32_t imm12)
     return rs1 & sext_imm12;
 }
 
+double rv64_fadd_d(double rs1, double rs2)
+{
+#pragma STDC FENV_ACCESS ON
+
+    // store the original rounding mode
+    const int originalRounding = fegetround();
+
+    // set the rounding mode
+    switch(s_frm) {
+        case 0: fesetround(FE_TONEAREST); break;
+        case 1: fesetround(FE_TOWARDZERO); break;
+        case 2: fesetround(FE_DOWNWARD); break;
+        case 3: fesetround(FE_UPWARD); break;
+        default:
+            __builtin_unreachable();
+    }
+
+    // do calculations
+    double dst = rs1 + rs2;
+    
+    // restore the original mode afterwards
+    fesetround(originalRounding);
+    
+#pragma STDC FENV_ACCESS OFF
+
+    return dst;
+}
+
+// f[rd]=M[x[rs1]+sext(offset)][63:0]
+double rv64_fld(int64_t rs1, int32_t imm12)
+{
+
+    assert(is_nbit_imm(imm12, 12));
+    int64_t addr = rs1 + sext(imm12, 11);
+    assert(addr > 0);
+    double dst;
+	memcpy(&dst, (void*)addr, sizeof(dst));
+
+    return dst;
+}
+
 double rv64_fmv_d_x(int64_t rs1)
 {
     double d;
@@ -110,6 +157,48 @@ int64_t rv64_fmv_x_d(double rs1)
 	memcpy((void*)(&i), (void*)(&rs1), sizeof(rs1));
     return i;
 }
+
+// pseudo-instruction: read round mode, expand to `csrrs rd, frm, x0`
+int64_t rv64p_frrm(void)
+{
+    return (int64_t)s_frm;
+}
+
+// pseudo-instruction: set round mode, expand to `csrrw rd, frm, rs1`
+void rv64p_fsrm(int64_t rs)
+{
+    printf("rv64p_fsrm(): rs=%ld ", rs); fflush(stdout);
+    s_frm = (uint8_t)rs;
+}
+
+double rv64_fsub_d(double rs1, double rs2)
+{
+#pragma STDC FENV_ACCESS ON
+
+    // store the original rounding mode
+    const int originalRounding = fegetround();
+
+    // set the rounding mode
+    switch(s_frm) {
+        case 0: fesetround(FE_TONEAREST); break;
+        case 1: fesetround(FE_TOWARDZERO); break;
+        case 2: fesetround(FE_DOWNWARD); break;
+        case 3: fesetround(FE_UPWARD); break;
+        default:
+            __builtin_unreachable();
+    }
+
+    // do calculations
+    double dst = rs1 - rs2;
+    
+    // restore the original mode afterwards
+    fesetround(originalRounding);
+    
+#pragma STDC FENV_ACCESS OFF
+
+    return dst;
+}
+
 
 
 // x[rd]=M[x[rs1]+sext(offset)][63:0]
@@ -131,18 +220,18 @@ int64_t rv64p_li_imm32(int32_t imm32)
     int64_t dst = 0;
 
     if (imm32 >= -2048 && imm32 <= 2047) {
-        return rv64_addi(0, low12(imm32));   // addi dst, x0, imm;
+        return rv64_addi(0, low12(imm32));
     }
 
     if (low12(imm32) >= 0) {
-        dst = rv64_lui(hi20(imm32));  // lui dst, imm20;
+        dst = rv64_lui(hi20(imm32));
     } else {
         // now `+1` does not overflow the low 20-bit of hi20(imm32),
         // and lui only uses the low 20-bit of the sum
-        dst = rv64_lui(hi20(imm32) + 1); // lui dst, imm20+1;
+        dst = rv64_lui(hi20(imm32) + 1);
     }
 
-    dst = rv64_addiw(dst, low12(imm32));  // addiw dst, dst, imm12
+    dst = rv64_addiw(dst, low12(imm32));
 
     return dst;
 }

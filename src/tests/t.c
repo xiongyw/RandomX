@@ -161,7 +161,7 @@ int main(void)
     printf("dst= %"PRId64"(%"PRIx64")\n", dst, dst);
     printf("sext=%"PRId64"(%"PRIx64")\n", sext(IMM, 31), sext(IMM, 31));
 #else
-    for (imm32 = 0x80000000; imm32 <= 0x7fffffff; ++ imm32) {
+    for (imm32 = (int32_t)0x80000000; imm32 < 0x7fffffff; ++ imm32) {
         PRI32("main()", imm32, imm32);
         dst = li_imm32(imm32);
         if (imm32 != dst) {

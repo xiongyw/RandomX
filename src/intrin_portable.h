@@ -30,6 +30,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <cstdint>
 #include "blake2/endian.h"
+#include "rv64_insn_sim.h"
+
 
 constexpr int32_t unsigned32ToSigned2sCompl(uint32_t x) {
 	return (-1 == ~0) ? (int32_t)x : (x > INT32_MAX ? (-(int32_t)(UINT32_MAX - x) - 1) : (int32_t)x);
@@ -169,7 +171,27 @@ FORCE_INLINE void rx_reset_float_state() {
 }
 
 FORCE_INLINE void rx_set_rounding_mode(uint32_t mode) {
+
+#if RV64_INSN_SIM
+        switch (mode & 3) {
+            case RoundDown:
+                rv64p_fsrm(RV_FRM_RDN);
+                break;
+            case RoundUp:
+                rv64p_fsrm(RV_FRM_RUP);
+                break;
+            case RoundToZero:
+                rv64p_fsrm(RV_FRM_RTZ);
+                break;
+            case RoundToNearest:
+                rv64p_fsrm(RV_FRM_RNE);
+                break;
+            default:
+                __builtin_unreachable();
+        }
+#else
 	_mm_setcsr(rx_mxcsr_default | (mode << 13));
+#endif
 }
 
 #elif defined(__PPC64__) && defined(__ALTIVEC__) && defined(__VSX__) //sadly only POWER7 and newer will be able to use SIMD acceleration. Earlier processors cant use doubles or 64 bit integers with SIMD
