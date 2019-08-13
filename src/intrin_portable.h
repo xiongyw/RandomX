@@ -718,10 +718,24 @@ FORCE_INLINE void rx_store_vec_i128(rx_vec_i128 *_P, rx_vec_i128 _B) {
 }
 
 FORCE_INLINE rx_vec_f128 rx_cvt_packed_int_vec_f128(const void* addr) {
+#if (0)
 	rx_vec_f128 x;
 	x.lo = (double)unsigned32ToSigned2sCompl(load32((uint8_t*)addr + 0));
 	x.hi = (double)unsigned32ToSigned2sCompl(load32((uint8_t*)addr + 4));
 	return x;
+#else
+    rx_vec_f128 x;
+    uint32_t lo = load32((uint8_t*)addr + 0);
+    uint32_t hi = load32((uint8_t*)addr + 4);
+    printf("rx_cvt_packed_int_vec_f128(): lo=%08" PRIx32 " hi=%08" PRIx32 "\n", lo, hi);
+    int32_t slo = unsigned32ToSigned2sCompl(lo);
+    int32_t shi = unsigned32ToSigned2sCompl(hi);
+    printf("rx_cvt_packed_int_vec_f128(): slo=%08" PRIx32 " shi=%08" PRIx32 "\n", slo, shi);
+    x.lo = (double)slo;
+    x.hi = (double)shi;
+    printf("rx_cvt_packed_int_vec_f128(): x.lo=%016" PRIx64 " x.hi=%016" PRIx64 "\n", (uint64_t)(x.lo), (uint64_t)(x.hi));
+    return x;
+#endif    
 }
 
 #define RANDOMX_DEFAULT_FENV

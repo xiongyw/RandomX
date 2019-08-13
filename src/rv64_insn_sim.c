@@ -103,6 +103,8 @@ int64_t rv64_andi(int64_t rs1, int32_t imm12)
     return rs1 & sext_imm12;
 }
 
+
+
 double rv64_fadd_d(double rs1, double rs2)
 {
 #pragma STDC FENV_ACCESS ON
@@ -112,10 +114,10 @@ double rv64_fadd_d(double rs1, double rs2)
 
     // set the rounding mode
     switch(s_frm) {
-        case 0: fesetround(FE_TONEAREST); break;
-        case 1: fesetround(FE_TOWARDZERO); break;
-        case 2: fesetround(FE_DOWNWARD); break;
-        case 3: fesetround(FE_UPWARD); break;
+        case RV_FRM_RNE: fesetround(FE_TONEAREST); break;
+        case RV_FRM_RTZ: fesetround(FE_TOWARDZERO); break;
+        case RV_FRM_RDN: fesetround(FE_DOWNWARD); break;
+        case RV_FRM_RUP: fesetround(FE_UPWARD); break;
         default:
             __builtin_unreachable();
     }
@@ -149,6 +151,65 @@ double rv64_fld(int64_t rs1, int32_t imm12)
     return dst;
 }
 #endif
+
+double rv64_fdiv_d(double rs1, double rs2)
+{
+#pragma STDC FENV_ACCESS ON
+
+    // store the original rounding mode
+    const int originalRounding = fegetround();
+
+    // set the rounding mode
+    switch(s_frm) {
+        case RV_FRM_RNE: fesetround(FE_TONEAREST); break;
+        case RV_FRM_RTZ: fesetround(FE_TOWARDZERO); break;
+        case RV_FRM_RDN: fesetround(FE_DOWNWARD); break;
+        case RV_FRM_RUP: fesetround(FE_UPWARD); break;
+        default:
+            __builtin_unreachable();
+    }
+
+    // do calculations
+    double dst = rs1 / rs2;
+
+    // restore the original mode afterwards
+    fesetround(originalRounding);
+
+#pragma STDC FENV_ACCESS OFF
+
+    return dst;
+}
+
+
+double rv64_fmul_d(double rs1, double rs2)
+{
+#pragma STDC FENV_ACCESS ON
+
+    // store the original rounding mode
+    const int originalRounding = fegetround();
+
+    // set the rounding mode
+    switch(s_frm) {
+        case RV_FRM_RNE: fesetround(FE_TONEAREST); break;
+        case RV_FRM_RTZ: fesetround(FE_TOWARDZERO); break;
+        case RV_FRM_RDN: fesetround(FE_DOWNWARD); break;
+        case RV_FRM_RUP: fesetround(FE_UPWARD); break;
+        default:
+            __builtin_unreachable();
+    }
+
+    // do calculations
+    double dst = rs1 * rs2;
+
+    // restore the original mode afterwards
+    fesetround(originalRounding);
+
+#pragma STDC FENV_ACCESS OFF
+
+    return dst;
+}
+
+
 
 double rv64_fmv_d_x(int64_t rs1)
 {
@@ -186,10 +247,10 @@ double rv64_fsub_d(double rs1, double rs2)
 
     // set the rounding mode
     switch(s_frm) {
-        case 0: fesetround(FE_TONEAREST); break;
-        case 1: fesetround(FE_TOWARDZERO); break;
-        case 2: fesetround(FE_DOWNWARD); break;
-        case 3: fesetround(FE_UPWARD); break;
+        case RV_FRM_RNE: fesetround(FE_TONEAREST); break;
+        case RV_FRM_RTZ: fesetround(FE_TOWARDZERO); break;
+        case RV_FRM_RDN: fesetround(FE_DOWNWARD); break;
+        case RV_FRM_RUP: fesetround(FE_UPWARD); break;
         default:
             __builtin_unreachable();
     }
@@ -308,10 +369,12 @@ int64_t rv64_srl(int64_t rs1, int64_t rs2)
     return (int64_t)(((uint64_t)rs1) >> (rs2 & 63));
 }
 
+#if (0)
 int64_t rv64_srli(int64_t rs1, uint8_t shamt)
 {
     return (int64_t)(((uint64_t)rs1) >> shamt);
 }
+#endif
 
 // M[x[rs1]+sext(offset)]=rs2[63:0]
 void rv64_sd(int64_t rs1, int64_t rs2, int32_t imm12)

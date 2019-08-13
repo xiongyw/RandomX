@@ -124,6 +124,8 @@ if (ARCH_ID STREQUAL "x86_64" OR ARCH_ID STREQUAL "x86-64" OR ARCH_ID STREQUAL "
   else()
     # default build has hardware AES enabled (software AES can be selected at runtime)
     add_flag("-maes")
+    # use fallback methods in `instrin_portal.h`
+    add_flag("-U__SSE2__")
     list(APPEND randomx_sources
       src/jit_compiler_x86_static.S
       src/jit_compiler_x86.cpp)

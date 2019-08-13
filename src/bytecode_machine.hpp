@@ -73,16 +73,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     x_tmp1 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */   \
     x_tmp1 = rv64_ld(x_tmp1, 0);
 
+// load 8-byte from scratchpad, and convert it to 2 doubles, according
+// to $4.3.1 of the spec, that the 64-bit from scratchpad is treated as 
+// two 32-bit signed integers (in little-endian, tow's complement format),
+// and each convert to a 64-bit double floating point format.
+// fixme: compare performance with load 8-byte once and then shift/xor
+#define RX_LOAD32_X2 \
+    RX_LD_OFFSET;                                                   \
+    int64_t x_scratchpad = (int64_t)scratchpad;                     \
+    x_tmp2 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */ \
+    x_tmp1 = rv64_lw(x_tmp2, 0);                                    \
+    x_tmp2 = rv64_lw(x_tmp2, 4);
+    
 
-typedef union{
-    rx_vec_i128 i;
-    rx_vec_f128 d;
-    uint64_t u64[2]; // 0: low 64-bit; 1: hi 64-bit
-    double   d64[2];
-    uint32_t u32[4];
-    int i32[4];
-} vec_u;
 #endif
+
+
+
 
 namespace randomx {
 
@@ -369,8 +376,9 @@ namespace randomx {
 
 		static void exe_FSWAP_R(RANDOMX_EXE_ARGS) {
 #if (RV64_F_INSN_SIM)
-            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
-            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
+            
             int64_t x_tmp1 = rv64_fmv_x_d(*fdst_l);
             int64_t x_tmp2 = rv64_fmv_x_d(*fdst_h);
             *fdst_h = rv64_fmv_d_x(x_tmp1);
@@ -382,12 +390,13 @@ namespace randomx {
 
 		static void exe_FADD_R(RANDOMX_EXE_ARGS) {
 #if (RV64_F_INSN_SIM)
-            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
-            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
-            double* fsrc_l = &(((vec_u*)ibc.fsrc)->d64[0]);
-            double* fsrc_h = &(((vec_u*)ibc.fsrc)->d64[1]);
-            *fdst_l = rv64_fadd_d(*fdst_l, *fsrc_l);
-            *fdst_h = rv64_fadd_d(*fdst_h, *fsrc_h);
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
+            double fsrc_l = ((rx_vec_f128*)ibc.fsrc)->lo;
+            double fsrc_h = ((rx_vec_f128*)ibc.fsrc)->hi;
+            
+            *fdst_l = rv64_fadd_d(*fdst_l, fsrc_l);
+            *fdst_h = rv64_fadd_d(*fdst_h, fsrc_h);
 #else
 			*ibc.fdst = rx_add_vec_f128(*ibc.fdst, *ibc.fsrc);
 #endif
@@ -395,19 +404,14 @@ namespace randomx {
 
 		static void exe_FADD_M(RANDOMX_EXE_ARGS) {
 #if (RV64_F_INSN_SIM)
-            RX_LD_OFFSET;
-            int64_t x_scratchpad = (int64_t)scratchpad;
-            x_tmp1 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */
-
-            // fixme: simulate `fld` instruction using `rx_cvt_packed_int_vec_f128()`
-			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128((void*)x_tmp1);
-
-            double* fl_tmp = &(((vec_u*)&fsrc)->d64[0]);
-            double* fh_tmp = &(((vec_u*)&fsrc)->d64[1]);
-            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
-            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
-            *fdst_l = rv64_fadd_d(*fdst_l, *fl_tmp);
-            *fdst_h = rv64_fadd_d(*fdst_h, *fh_tmp);
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
+            
+            RX_LOAD32_X2;
+            double fl_tmp = rv64_fcvt_d_l(x_tmp1);
+            double fh_tmp = rv64_fcvt_d_l(x_tmp2);
+            *fdst_l = rv64_fadd_d(*fdst_l, fl_tmp);
+            *fdst_h = rv64_fadd_d(*fdst_h, fh_tmp);
 #else
 			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad));
 			*ibc.fdst = rx_add_vec_f128(*ibc.fdst, fsrc);
@@ -416,12 +420,13 @@ namespace randomx {
 
 		static void exe_FSUB_R(RANDOMX_EXE_ARGS) {
 #if (RV64_F_INSN_SIM)
-                        double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
-                        double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
-                        double* fsrc_l = &(((vec_u*)ibc.fsrc)->d64[0]);
-                        double* fsrc_h = &(((vec_u*)ibc.fsrc)->d64[1]);
-                        *fdst_l = rv64_fsub_d(*fdst_l, *fsrc_l);
-                        *fdst_h = rv64_fsub_d(*fdst_h, *fsrc_h);
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
+            double fsrc_l = ((rx_vec_f128*)ibc.fsrc)->lo;
+            double fsrc_h = ((rx_vec_f128*)ibc.fsrc)->hi;
+            
+            *fdst_l = rv64_fsub_d(*fdst_l, fsrc_l);
+            *fdst_h = rv64_fsub_d(*fdst_h, fsrc_h);
 #else
 			*ibc.fdst = rx_sub_vec_f128(*ibc.fdst, *ibc.fsrc);
 #endif
@@ -429,34 +434,14 @@ namespace randomx {
 
 		static void exe_FSUB_M(RANDOMX_EXE_ARGS) {
 #if (RV64_F_INSN_SIM)
-            RX_LD_OFFSET;
-            int64_t x_scratchpad = (int64_t)scratchpad;
-            x_tmp2 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */
-
-#if (0)
-            rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128((void*)x_tmp2);
-            double* fl_tmp = &(((vec_u*)&fsrc)->d64[0]);
-            double* fh_tmp = &(((vec_u*)&fsrc)->d64[1]);
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
             
-            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
-            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
-            *fdst_l = rv64_fsub_d(*fdst_l, *fl_tmp);
-            *fdst_h = rv64_fsub_d(*fdst_h, *fh_tmp);
-#else
-            // load 8-byte from scratchpad, and convert it to 2 doubles, according
-            // to $4.3.1 of the spec, that the 64-bit from scratchpad is treated as 
-            // two 32-bit signed integers (in little-endian, tow's complement format),
-            // and each convert to a 64-bit double floating point format
-            // fixme: compare performance with load 8-byte once and then shift/xor
-            x_tmp1 = rv64_lw(x_tmp2, 0); // load the 1st 4-byte (low) and sext
-            x_tmp2 = rv64_lw(x_tmp2, 4); // load the 2nd 4-byte (high) and sext
+            RX_LOAD32_X2;
             double fl_tmp = rv64_fcvt_d_l(x_tmp1);
             double fh_tmp = rv64_fcvt_d_l(x_tmp2);
-            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
-            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
             *fdst_l = rv64_fsub_d(*fdst_l, fl_tmp);
             *fdst_h = rv64_fsub_d(*fdst_h, fh_tmp);
-#endif
 #else
 			rx_vec_f128 fsrc = rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad));
 			*ibc.fdst = rx_sub_vec_f128(*ibc.fdst, fsrc);
@@ -466,8 +451,8 @@ namespace randomx {
 		static void exe_FSCAL_R(RANDOMX_EXE_ARGS) {
 #if (RV64_F_INSN_SIM)
             int64_t x_scale_mask = 0x80F0000000000000;
-            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
-            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
 
             int64_t x_tmp1 = rv64_fmv_x_d(*fdst_l);
             int64_t x_tmp2 = rv64_fmv_x_d(*fdst_h);
@@ -482,15 +467,118 @@ namespace randomx {
 		}
 
 		static void exe_FMUL_R(RANDOMX_EXE_ARGS) {
+#if (RV64_F_INSN_SIM)
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
+            double fsrc_l = ((rx_vec_f128*)ibc.fsrc)->lo;
+            double fsrc_h = ((rx_vec_f128*)ibc.fsrc)->hi;
+            
+            *fdst_l = rv64_fmul_d(*fdst_l, fsrc_l);
+            *fdst_h = rv64_fmul_d(*fdst_h, fsrc_h);
+#else
 			*ibc.fdst = rx_mul_vec_f128(*ibc.fdst, *ibc.fsrc);
+#endif
 		}
 
 		static void exe_FDIV_M(RANDOMX_EXE_ARGS) {
+#if (RV64_F_INSN_SIM)
+#if (0)
+			rx_vec_f128 fmem = rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad));
+            double* fmem_l = &(((vec_u*)&fmem)->d64[0]);
+            double* fmem_h = &(((vec_u*)&fmem)->d64[1]);
+            uint64_t imem_l = (uint64_t)(*fmem_l);
+            uint64_t imem_h = (uint64_t)(*fmem_h);
+            printf("FDIV_M(golden): fmem: low=%016" PRIx64 " high=%016" PRIx64 "\n", imem_l, imem_h);
+
+            rx_vec_f128 fsrc = maskRegisterExponentMantissa(config, fmem);
+            fmem_l = &(((vec_u*)&fsrc)->d64[0]);
+            fmem_h = &(((vec_u*)&fsrc)->d64[1]);
+            imem_l = (uint64_t)(*fmem_l);
+            imem_h = (uint64_t)(*fmem_h);
+            printf("FDIV_M(golden): fsrc: low=%016" PRIx64 " high=%016" PRIx64 "\n", imem_l, imem_h);
+
+            RX_LOAD32_X2;
+            printf("FDIV_M(): fmem: low=%016" PRIx64 " high=%016" PRIx64 "\n", x_tmp1, x_tmp2); fflush(stdout);
+            int64_t x_E_and_mask = 0x00ffffffffffffff;
+            int64_t x_E_or_mask_l = config.eMask[0];
+            int64_t x_E_or_mask_h = config.eMask[1];
+            x_tmp1 = rv64_and(x_tmp1, x_E_and_mask);
+            x_tmp2 = rv64_and(x_tmp2, x_E_and_mask);
+            x_tmp1 = rv64_or(x_tmp1, x_E_or_mask_l);
+            x_tmp2 = rv64_or(x_tmp2, x_E_or_mask_h);
+            double fl_tmp = rv64_fcvt_d_l(x_tmp1);
+            double fh_tmp = rv64_fcvt_d_l(x_tmp2);
+            
+            double* fdst_l = &(((vec_u*)ibc.fdst)->d64[0]);
+            double* fdst_h = &(((vec_u*)ibc.fdst)->d64[1]);
+            *fdst_l = rv64_fdiv_d(*fdst_l, fl_tmp);
+            *fdst_h = rv64_fdiv_d(*fdst_h, fh_tmp);
+#endif
+            void* addr = getScratchpadAddress(ibc, scratchpad);
+            printf("FDIV_M(golden): addr=%016" PRIx64 "\n", (uint64_t)addr);
+            rx_vec_f128 fmem = rx_cvt_packed_int_vec_f128(addr);
+            
+            printf("FDIV_M(golden): after cvt: ");
+            uint8_t* p = (uint8_t*)(&fmem);
+            for (int i = 0; i < 16; i ++)
+                printf("%02x", p[i]);
+            printf("\n");
+
+			rx_vec_f128 fsrc = maskRegisterExponentMantissa(config, fmem);
+            printf("FDIV_M(golden): after and/or mask: ");
+            p = (uint8_t*)(&fsrc);
+            for (int i = 0; i < 16; i ++)
+                printf("%02x", p[i]);
+            printf("\n");
+            printf("FDIV_M(golden): fsrc.lo=%016" PRIx64 " fmem.hi=%016" PRIx64 "\n", fsrc.i.u64[0], fsrc.i.u64[1]);
+
+            /////////////////////////////////////////////////////////////
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
+
+            int64_t x_scratchpad = (int64_t)scratchpad;
+            int64_t x_E_and_mask = 0x00ffffffffffffff;
+            int64_t x_E_or_mask_l = config.eMask[0];
+            int64_t x_E_or_mask_h = config.eMask[1];
+            
+            RX_LD_OFFSET;
+            x_tmp2 = rv64_add(x_scratchpad, x_tmp1); /* absolute address */
+            printf("FDIV_M(): addr=%016" PRIx64 "\n", x_tmp2); 
+            
+            x_tmp1 = rv64_lw(x_tmp2, 0);
+            x_tmp2 = rv64_lw(x_tmp2, 4);
+            printf("FDIV_M(): mem: %016" PRIx64 " high=%016" PRIx64 "\n", x_tmp1, x_tmp2);
+
+            double fl_tmp = rv64_fcvt_d_l(x_tmp1);
+            double fh_tmp = rv64_fcvt_d_l(x_tmp2);
+            printf("FDIV_M(): after cvt: %016" PRIx64 " high=%016" PRIx64 "\n", *((uint64_t*)(&fl_tmp)), *((uint64_t*)(&fh_tmp)));
+
+            x_tmp1 = rv64_fmv_x_d(fl_tmp);
+            x_tmp2 = rv64_fmv_x_d(fh_tmp);
+
+            // `and` with mantissa mask
+            x_tmp1 = rv64_and(x_tmp1, x_E_and_mask);
+            x_tmp2 = rv64_and(x_tmp2, x_E_and_mask);
+
+            // `or` with exponent mask
+            x_tmp1 = rv64_or(x_tmp1, x_E_or_mask_l);
+            x_tmp2 = rv64_or(x_tmp2, x_E_or_mask_h);
+            printf("FDIV_M(): after and/or: %016" PRIx64 " high=%016" PRIx64 "\n", x_tmp1, x_tmp2);
+            fflush(stdout);
+
+            fl_tmp = rv64_fmv_d_x(x_tmp1);
+            fh_tmp = rv64_fmv_d_x(x_tmp2);
+
+            *fdst_l = rv64_fdiv_d(*fdst_l, fl_tmp);
+            *fdst_h = rv64_fdiv_d(*fdst_h, fh_tmp);
+
+#else
 			rx_vec_f128 fsrc = maskRegisterExponentMantissa(
 				config,
 				rx_cvt_packed_int_vec_f128(getScratchpadAddress(ibc, scratchpad))
 			);
 			*ibc.fdst = rx_div_vec_f128(*ibc.fdst, fsrc);
+#endif            
 		}
 
 		static void exe_FSQRT_R(RANDOMX_EXE_ARGS) {
@@ -554,8 +642,39 @@ namespace randomx {
 		}
 	protected:
 		static rx_vec_f128 maskRegisterExponentMantissa(ProgramConfiguration& config, rx_vec_f128 x) {
+            
 			const rx_vec_f128 xmantissaMask = rx_set_vec_f128(dynamicMantissaMask, dynamicMantissaMask);
 			const rx_vec_f128 xexponentMask = rx_load_vec_f128((const double*)&config.eMask);
+#if (1)            
+            printf("maskRegisterExponentMantissa(golden): dynamicMantissaMask=%016" PRIx64 "\n", dynamicMantissaMask);
+            double and_l = ((rx_vec_f128*)&xmantissaMask)->lo;
+            double and_h = ((rx_vec_f128*)&xmantissaMask)->hi;
+            double* or_l = &(((rx_vec_f128*)&xexponentMask)->lo);
+            double* or_h = &(((rx_vec_f128*)&xexponentMask)->hi);
+
+            printf("xmantissaMask: ");            
+            uint8_t* p = (uint8_t*)&xmantissaMask;
+            for (int i = 0; i < 16; i ++)
+                printf("%02x", p[i]);
+            printf("\n");
+
+            printf("eMask[2]: ");
+            p = (uint8_t*)&config.eMask;
+            for (int i = 0; i < 16; i ++)
+                printf("%02x", p[i]);
+            printf("\n");
+
+            
+            printf("xexponentMask: ");
+            p = (uint8_t*)&xexponentMask;
+            for (int i = 0; i < 16; i ++)
+                printf("%02x", p[i]);
+            printf("\n");
+
+            printf("maskRegisterExponentMantissa(golden): and-mask: low=%016" PRIx64 " high=%016" PRIx64 "\n", *((uint64_t*)(&and_l)), *((uint64_t*)(&and_h)));
+            printf("maskRegisterExponentMantissa(golden): or-mask: low=%016" PRIx64 " high=%016" PRIx64 "\n", *((uint64_t*)(or_l)), *((uint64_t*)(or_h)));
+#endif            
+            
 			x = rx_and_vec_f128(x, xmantissaMask);
 			x = rx_or_vec_f128(x, xexponentMask);
 			return x;

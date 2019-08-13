@@ -164,6 +164,13 @@ namespace randomx {
 	constexpr int dynamicExponentBits = 4;
 	constexpr int staticExponentBits = 4;
 	constexpr uint64_t constExponentBits = 0x300;
+/*    
+   dynamicMantissaMask (aka `and` mask):
+   
+   6666 5555 5555 5544 4444 4444 3333 3333 3322 2222 2222 1111 1111 1100 0000 0000
+   3210 9876 5432 1098 7654 3210 9876 5432 1098 7654 3210 9876 5432 1098 7654 3210
+   0000:0000:1111:1111:1111:1111:1111:1111:1111:1111:1111:1111:1111:1111:1111:1111
+*/    
 	constexpr uint64_t dynamicMantissaMask = (1ULL << (mantissaSize + dynamicExponentBits)) - 1;
 
 	struct MemoryRegisters {
