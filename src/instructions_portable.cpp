@@ -136,8 +136,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "rv64_insn_sim.h"
 void rx_reset_float_state() {
-    printf("###### rx_reset_float_state()\n"); fflush(stdout);
 #if RV64_F_INSN_SIM
+    printf("###### rx_reset_float_state()\n"); fflush(stdout);
     rv64p_fsrm(RV_FRM_RNE);
 #endif
 	setRoundMode_(FE_TONEAREST);

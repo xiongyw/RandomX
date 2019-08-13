@@ -171,8 +171,8 @@ FORCE_INLINE rx_vec_f128 rx_cvt_packed_int_vec_f128(const void* addr) {
 constexpr uint32_t rx_mxcsr_default = 0x9FC0; //Flush to zero, denormals are zero, default rounding mode, all exceptions disabled
 
 FORCE_INLINE void rx_reset_float_state() {
-    printf("****** rx_reset_float_state()\n"); fflush(stdout);
 #if RV64_F_INSN_SIM
+                //printf("****** rx_reset_float_state()\n"); fflush(stdout);
                 rv64p_fsrm(RV_FRM_RNE);
 #endif
 	_mm_setcsr(rx_mxcsr_default);
@@ -718,7 +718,7 @@ FORCE_INLINE void rx_store_vec_i128(rx_vec_i128 *_P, rx_vec_i128 _B) {
 }
 
 FORCE_INLINE rx_vec_f128 rx_cvt_packed_int_vec_f128(const void* addr) {
-#if (0)
+#if (1)
 	rx_vec_f128 x;
 	x.lo = (double)unsigned32ToSigned2sCompl(load32((uint8_t*)addr + 0));
 	x.hi = (double)unsigned32ToSigned2sCompl(load32((uint8_t*)addr + 4));
@@ -735,7 +735,7 @@ FORCE_INLINE rx_vec_f128 rx_cvt_packed_int_vec_f128(const void* addr) {
     x.hi = (double)shi;
     printf("rx_cvt_packed_int_vec_f128(): x.lo=%016" PRIx64 " x.hi=%016" PRIx64 "\n", (uint64_t)(x.lo), (uint64_t)(x.hi));
     return x;
-#endif    
+#endif
 }
 
 #define RANDOMX_DEFAULT_FENV
