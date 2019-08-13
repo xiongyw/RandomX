@@ -13,7 +13,8 @@
 extern "C" {
 #endif
 
-#define RV64_INSN_SIM   1
+#define RV64_I_INSN_SIM   1   // integer instructions simulation
+#define RV64_F_INSN_SIM   1   // floating point instructions simulation
 
 
 #define DEBUG 0
@@ -80,7 +81,10 @@ int64_t rv64_and(int64_t rs1, int64_t rs2);
 int64_t rv64_andi(int64_t rs1, int32_t imm12);
 
 double rv64_fadd_d(double rs1, double rs2);
-double rv64_fld(int64_t rs1, int32_t imm12);
+// converts the 64-bit two's complement integer to a double
+double rv64_fcvt_d_l(int64_t rs1);
+
+//double rv64_fld(int64_t rs1, int32_t imm12);
 
 double rv64_fmv_d_x(int64_t rs1);
 int64_t rv64_fmv_x_d(double rs1);
@@ -90,6 +94,8 @@ void rv64p_fsrm(int64_t rs);  // set round mode
 double rv64_fsub_d(double rs1, double rs2);
 
 int64_t rv64_ld(int64_t rs1, int32_t imm12);
+int64_t rv64_lw(int64_t rs1, int32_t imm12);
+
 
 // psedu-insn `li`. only simulatr `li imm32`, as in randomx imm is always 32-bit
 int64_t rv64p_li_imm32(int32_t imm32);

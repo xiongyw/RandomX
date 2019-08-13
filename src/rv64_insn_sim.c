@@ -131,10 +131,15 @@ double rv64_fadd_d(double rs1, double rs2)
     return dst;
 }
 
+double rv64_fcvt_d_l(int64_t rs1)
+{
+    return (double)rs1;
+}
+
+#if (0)
 // f[rd]=M[x[rs1]+sext(offset)][63:0]
 double rv64_fld(int64_t rs1, int32_t imm12)
 {
-
     assert(is_nbit_imm(imm12, 12));
     int64_t addr = rs1 + sext(imm12, 11);
     assert(addr > 0);
@@ -143,6 +148,7 @@ double rv64_fld(int64_t rs1, int32_t imm12)
 
     return dst;
 }
+#endif
 
 double rv64_fmv_d_x(int64_t rs1)
 {
@@ -167,7 +173,7 @@ int64_t rv64p_frrm(void)
 // pseudo-instruction: set round mode, expand to `csrrw rd, frm, rs1`
 void rv64p_fsrm(int64_t rs)
 {
-    //printf("rv64p_fsrm(): rs=%ld ", rs); fflush(stdout);
+    //printf("rv64p_fsrm(): rs=%ld\n", rs); fflush(stdout);
     s_frm = (uint8_t)rs;
 }
 
@@ -213,6 +219,23 @@ int64_t rv64_ld(int64_t rs1, int32_t imm12)
 
     return dst;
 }
+
+// x[rd]=sext(M[x[rs1]+sext(offset)][31:0])
+int64_t rv64_lw(int64_t rs1, int32_t imm12)
+{
+    assert(is_nbit_imm(imm12, 12));
+    int64_t addr = rs1 + sext(imm12, 11);
+    assert(addr > 0);
+    // load 4-byte
+    uint32_t dst0;
+	memcpy(&dst0, (void*)addr, sizeof(dst0));
+    // sext() to 8-byte
+    int64_t dst = sext(dst0, 31);
+
+    return dst;
+}
+
+
 
 // p means 'pseudo'
 int64_t rv64p_li_imm32(int32_t imm32)

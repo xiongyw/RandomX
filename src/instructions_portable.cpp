@@ -136,8 +136,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "rv64_insn_sim.h"
 void rx_reset_float_state() {
-#if RV64_INSN_SIM
-            rv64p_fsrm(RV_FRM_RNE);
+    printf("###### rx_reset_float_state()\n"); fflush(stdout);
+#if RV64_F_INSN_SIM
+    rv64p_fsrm(RV_FRM_RNE);
 #endif
 	setRoundMode_(FE_TONEAREST);
 	rx_set_double_precision(); //set precision to 53 bits if needed by the platform
@@ -145,7 +146,7 @@ void rx_reset_float_state() {
 
 void rx_set_rounding_mode(uint32_t mode) {
 
-#if RV64_INSN_SIM
+#if RV64_F_INSN_SIM
     switch (mode & 3) {
         case RoundDown:
             rv64p_fsrm(RV_FRM_RDN);

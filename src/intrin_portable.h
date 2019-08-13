@@ -164,10 +164,15 @@ FORCE_INLINE rx_vec_f128 rx_cvt_packed_int_vec_f128(const void* addr) {
 	return _mm_cvtepi32_pd(ix);
 }
 
+// http://softpixel.com/~cwright/programming/simd/sse.php
+//   1111 1100 0000 0000
+//   5432 1098 7654 3210
+//0b:1001:1111:1100:0000 0x9fc0
 constexpr uint32_t rx_mxcsr_default = 0x9FC0; //Flush to zero, denormals are zero, default rounding mode, all exceptions disabled
 
 FORCE_INLINE void rx_reset_float_state() {
-#if RV64_INSN_SIM
+    printf("****** rx_reset_float_state()\n"); fflush(stdout);
+#if RV64_F_INSN_SIM
                 rv64p_fsrm(RV_FRM_RNE);
 #endif
 	_mm_setcsr(rx_mxcsr_default);
@@ -175,7 +180,7 @@ FORCE_INLINE void rx_reset_float_state() {
 
 FORCE_INLINE void rx_set_rounding_mode(uint32_t mode) {
 
-#if 1 // RV64_INSN_SIM
+#if RV64_F_INSN_SIM
         switch (mode & 3) {
             case RoundDown:
                 rv64p_fsrm(RV_FRM_RDN);

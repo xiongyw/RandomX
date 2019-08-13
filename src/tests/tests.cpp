@@ -695,6 +695,30 @@ int main() {
 		assert(ibc.fsrc == &reg.a[registerSrc]);
 	});
 
+
+    // added
+	runTest("FSUB_R RoundToZero (execute)", RANDOMX_FREQ_FSUB_R > 0, [&] {
+		alignas(16) uint64_t vec[2];
+		reg.f[registerDst] = rx_set_vec_f128(0x3ffd2c97cc4ef015, 0xc1ce30b3c4223576);
+		reg.a[registerSrc] = rx_set_vec_f128(0x402a26a86a60c8fb, 0x40b8f684057a59e1);
+		rx_set_rounding_mode(RoundToZero);
+		decoder.executeInstruction(ibc, pc, nullptr, config);
+		rx_store_vec_f128((double*)&vec, reg.f[registerDst]);
+#if (0)
+        unsigned char* p = (unsigned char*)&vec;
+        for (int i = 0; i < 16; ++i)
+            printf("%02x", p[i]);
+        printf("\n"); fflush(stdout);
+#endif
+		assert(equalsHex(&vec, "3338643fc030cec1f8ead670158126c0"));
+	});
+
+
+
+
+
+
+
 	runTest("FSUB_M (decode)", RANDOMX_FREQ_FSUB_M > 0, [&] {
 		randomx::Instruction instr;
 		instr.opcode = randomx::ceil_FSUB_M - 1;
@@ -709,6 +733,30 @@ int main() {
 		assert(ibc.imm == imm64);
 		assert(ibc.memMask == randomx::ScratchpadL1Mask);
 	});
+
+    // added
+	runTest("FSUB_M RoundToNearest (execute)", RANDOMX_FREQ_FSUB_M > 0, [&] {
+		uint64_t mockScratchpad;
+		store64(&mockScratchpad, 0x1234567890abcdef);
+		alignas(16) uint64_t vec[2];
+		reg.f[registerDst] = rx_set_vec_f128(0, 0);
+		reg.r[registerSrc] = 0xFFFFFFFFFFFFE930;
+		rx_set_rounding_mode(RoundToNearest);
+		decoder.executeInstruction(ibc, pc, (uint8_t*)&mockScratchpad, config);
+		rx_store_vec_f128((double*)&vec, reg.f[registerDst]);
+#if (0)
+                unsigned char* p = (unsigned char*)&vec;
+                for (int i = 0; i < 16; ++i)
+                    printf("%02x", p[i]);
+                printf("\n"); fflush(stdout);
+#endif
+        
+		assert(equalsHex(&vec, "000040840cd5db41000000785634b2c1"));
+	});
+
+
+
+
 
 	runTest("FSCAL_R (decode)", RANDOMX_FREQ_FSCAL_R > 0, [&] {
 		randomx::Instruction instr;

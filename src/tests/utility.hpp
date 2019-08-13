@@ -68,6 +68,7 @@ template<size_t N>
 bool equalsHex(const void* hash, const char (&hex)[N]) {
 	char reference[N / 2];
 	hex2bin(hex, N - 1, reference);
+    //printf("equalsHex(): hex=%s\n", hex); fflush(stdout);
 	return memcmp(hash, reference, sizeof(reference)) == 0;
 }
 
