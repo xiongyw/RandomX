@@ -439,10 +439,14 @@ namespace randomx {
 			int creg = instr.dst % RegistersCount;
 			ibc.idst = &nreg->r[creg];
 			ibc.target = registerUsage[creg];
+            
+            // 1. A constant `b` is calculated as `mod.cond + RANDOMX_JUMP_OFFSET`
 			int shift = instr.getModCond() + ConditionOffset;
+            // 2. A constant `cimm` is constructed as sign-extended imm32 with bit `b` set to 1, and bit `b-1` set to 0 (if `b > 0`)
 			ibc.imm = signExtend2sCompl(instr.getImm32()) | (1ULL << shift);
 			if (ConditionOffset > 0 || shift > 0) //clear the bit below the condition mask - this limits the number of successive jumps to 2
 				ibc.imm &= ~(1ULL << (shift - 1));
+            
 			ibc.memMask = ConditionMask << shift;
 			//mark all registers as used
 			for (unsigned j = 0; j < RegistersCount; ++j) {

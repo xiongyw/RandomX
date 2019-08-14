@@ -88,7 +88,6 @@ void generateAsmRV64(uint32_t nonce) {
 	fillAes1Rx4<softAes>((void*)hash, randomx::ScratchpadSize, scratchpad);
 	fillAes4Rx4<softAes>(hash, sizeof(p), &p);
 	asmRV64.generateProgram(p);
-	asmRV64.printCode(std::cout);
 }
 
 

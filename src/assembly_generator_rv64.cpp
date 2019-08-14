@@ -5,14 +5,14 @@ All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
-	* Redistributions of source code must retain the above copyright
-	  notice, this list of conditions and the following disclaimer.
-	* Redistributions in binary form must reproduce the above copyright
-	  notice, this list of conditions and the following disclaimer in the
-	  documentation and/or other materials provided with the distribution.
-	* Neither the name of the copyright holder nor the
-	  names of its contributors may be used to endorse or promote products
-	  derived from this software without specific prior written permission.
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the copyright holder nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -33,605 +33,318 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "program.hpp"
 #include "superscalar.hpp"
 
-// note: for JIT later, do not use any risc-v pseudo-instructions (or register abi-names) here.
+#include "instruction.hpp"
 
 namespace randomx {
 
-	static const char* regR[]  = { "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17" };
+    // integer register (x?) index for r0~7
+    static uint8_t s_ireg_map[RegistersCount] = { 10, 11, 12, 13, 14, 15, 16, 17 };
 
-	static const char* regFLo[] = { "f10", "f11", "f12", "f13" };
-	static const char* regFHi[] = { "f14", "f15", "f16", "f17" };
+    // float register (f?) index for f0~3, e0~3, a0~3
+    static uint8_t s_freg_map[RegisterCountFlt * 3 * 2] = {
+        10, 11, 12, 13, 14, 15, 16, 17, // f0l, f0h, f1l, f1h, f2l, f2h, f3l, f3h
+         0,  1,  2,  3,  4,  5,  6,  7, // e0l, e0h, e1l, e1h, e2l, e2h, e3l, e3h
+         8,  9, 18, 19, 20, 21, 22, 23  // a0l, a0h, a1l, a1h, a2l, a2h, a3l, a3h
+    };
 
-	static const char* regELo[] = { "f0", "f1", "f2", "f3" };
-	static const char* regEHi[] = { "f4", "f5", "f6", "f7" };
-
-	static const char* regALo[] = {  "f8",  "f9", "f18", "f19" };
-	static const char* regAHi[] = { "f20", "f21", "f22", "f23" };
-
-	static const char* regFELo[] = { "f10", "f11", "f12", "f13", "f0", "f1", "f2", "f3" };
-	static const char* regFEHi[] = { "f14", "f15", "f16", "f17", "f4", "f5", "f6", "f7" };
-
-	static const char* regScratchpadAddr = "x7";
-	static const char* regIC = "x28";  // instruction count
-    static const char* regZero = "x0";
-    static const char* regRA = "x1";   // return address
-    static const char* regSP = "x2";   // stack pointer
-    static const char* regTmp1 = "x29";
-    static const char* regTmp2 = "x30";
-
-	static const char* tempRegxLo = "f28";
-	static const char* tempRegxHi = "f24";
-	static const char* mantissaMaskRegLo = "f29";  // E 'and' mask
-	static const char* mantissaMaskRegHi = "f25";
-	static const char* exponentMaskRegLo = "f30";  // E 'or' mask
-	static const char* exponentMaskRegHi = "f26";
-	static const char* scaleMaskRegLo = "f31"; // scale mask
-	static const char* scaleMaskRegHi = "f27";
-
-    /*
-     * this routine is to check whether or not the value stored in int32_t can be
-     * represented by 12-bit:
-     * - if it's unsigned, then bit 31-12 should be all zero
-     * - if it's signed (negative), then bit 31-12 are all the same as bit 11
-     */
-    bool is_nbit_imm(int32_t imm, uint8_t n)
-    {
-        if (n > 32) return false;
+    static uint8_t x_zero = 0;
+    static uint8_t x_scratchpad = 28;
+    static uint8_t x_tmp1 = 29;
+    static uint8_t x_tmp2 = 30;
+    static uint8_t x_n64 = 31;
+    static uint8_t x_L1_mask = 9;
+    static uint8_t x_L2_mask = 18;
+    static uint8_t x_L3_mask = 19;
+    static uint8_t x_scale_mask = 20;
+    static uint8_t x_E_and_mask = 21;
+    static uint8_t x_E_or_mask_l = 22;
+    static uint8_t x_E_or_mask_h = 23;
     
-        bool zero_31_n = true; // is bit n~63 are all zero
-        for (int i = n; i < 32; i ++) {
-            uint8_t bitx = (imm >> i) & 0x1;
-            if (bitx) {
-                zero_31_n = false;
-                break;
+
+
+    uint8_t AssemblyGeneratorRV64::getIRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_src) {
+
+        // handle special case when `ibc.isrc=&BytecodeMachine::zero` for *_M instructions
+        if ((instr.src % RegistersCount) == (instr.dst % RegistersCount) && 
+            (ibc.type == InstructionType::IADD_M ||
+             ibc.type == InstructionType::ISUB_M ||
+             ibc.type == InstructionType::IMUL_M ||
+             ibc.type == InstructionType::IMULH_M ||
+             ibc.type == InstructionType::ISMULH_M ||
+             ibc.type == InstructionType::IXOR_M)) {
+            return x_zero;
+        }
+
+        int offset = (uint8_t*)(is_src? ibc.isrc : ibc.idst) - (uint8_t*)nreg;
+        offset /= 8;
+        
+        //if (is_src && (offset < 0 || offset >= RegistersCount))  return x_zero;
+        
+        assert(offset < RegistersCount);
+        return s_ireg_map[offset];
+    }
+
+    uint8_t AssemblyGeneratorRV64::getFRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_src, bool is_low) {
+        int offset = (uint8_t*)(is_src? ibc.fsrc : ibc.fdst) - (uint8_t*)nreg - 8 * RegistersCount;
+        offset /= 8;
+        assert(offset < RegisterCountFlt * 3 * 2 && (offset % 2) == 0);
+        return s_freg_map[is_low? offset : offset + 1];
+    }
+
+    void AssemblyGeneratorRV64::generateProgram(Program& prog) {
+
+        NativeRegisterFile reg;
+        BytecodeMachine decoder;
+        InstructionByteCode bytecode[RANDOMX_PROGRAM_SIZE];
+
+        // compile all instructions first
+        decoder.beginCompilation(reg);
+        for (unsigned i = 0; i < prog.getSize(); ++i) {
+            auto& instr = prog(i);
+            auto& ibc = bytecode[i];
+            decoder.compileInstruction(instr, i, ibc);
+        }
+
+        for (unsigned i = 0; i < prog.getSize(); ++i) {
+            // VM instruction
+            printf("L%03d:                           # ", i);
+            std::cout << prog(i);
+
+            // native instructions
+            generateCode(bytecode[i], &reg, prog, i);
+        }
+    }
+
+    void AssemblyGeneratorRV64::generateCode(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        switch(ibc.type) {
+            case InstructionType::IADD_RS:  h_IADD_RS(ibc, nreg, prog, i);  break;
+            case InstructionType::IADD_M:   h_IADD_M(ibc, nreg, prog, i);   break;
+            case InstructionType::ISUB_R:   h_ISUB_R(ibc, nreg, prog, i);   break;
+            case InstructionType::ISUB_M:   h_ISUB_M(ibc, nreg, prog, i);   break;
+            case InstructionType::IMUL_R:   h_IMUL_R(ibc, nreg, prog, i);   break;
+            case InstructionType::IMUL_M:   h_IMUL_M(ibc, nreg, prog, i);   break;
+            case InstructionType::IMULH_R:  h_IMULH_R(ibc, nreg, prog, i);  break;
+            case InstructionType::IMULH_M:  h_IMULH_M(ibc, nreg, prog, i);  break;
+            case InstructionType::ISMULH_R: h_ISMULH_R(ibc, nreg, prog, i); break;
+            case InstructionType::ISMULH_M: h_ISMULH_M(ibc, nreg, prog, i); break;
+            case InstructionType::IMUL_RCP: h_IMUL_RCP(ibc, nreg, prog, i); break;
+            case InstructionType::INEG_R:   h_INEG_R(ibc, nreg, prog, i);   break;
+            case InstructionType::IXOR_R:   h_IXOR_R(ibc, nreg, prog, i);   break;
+            case InstructionType::IXOR_M:   h_IXOR_M(ibc, nreg, prog, i);   break;
+            case InstructionType::IROR_R:   h_IROR_R(ibc, nreg, prog, i);   break;
+            case InstructionType::IROL_R:   h_IROL_R(ibc, nreg, prog, i);   break;
+            case InstructionType::ISWAP_R:  h_ISWAP_R(ibc, nreg, prog, i);  break;
+            case InstructionType::FSWAP_R:  h_FSWAP_R(ibc, nreg, prog, i);  break;
+            case InstructionType::FADD_R:   h_FADD_R(ibc, nreg, prog, i);   break;
+            case InstructionType::FADD_M:   h_FADD_M(ibc, nreg, prog, i);   break;
+            case InstructionType::FSUB_R:   h_FSUB_R(ibc, nreg, prog, i);   break;
+            case InstructionType::FSUB_M:   h_FSUB_M(ibc, nreg, prog, i);   break;
+            case InstructionType::FSCAL_R:  h_FSCAL_R(ibc, nreg, prog, i);  break;
+            case InstructionType::FMUL_R:   h_FMUL_R(ibc, nreg, prog, i);   break;
+            case InstructionType::FDIV_M:   h_FDIV_M(ibc, nreg, prog, i);   break;
+            case InstructionType::FSQRT_R:  h_FSQRT_R(ibc, nreg, prog, i);  break;
+            case InstructionType::CBRANCH:  h_CBRANCH(ibc, nreg, prog, i);  break;
+            case InstructionType::CFROUND:  h_CFROUND(ibc, nreg, prog, i);  break;
+            case InstructionType::ISTORE:   h_ISTORE(ibc, nreg, prog, i);   break;
+            case InstructionType::NOP:                                break;
+            default:
+                __builtin_unreachable();
+        }
+    }
+
+    void AssemblyGeneratorRV64::traceint(InstructionByteCode& ibc) {
+        if (trace) {
+            //printf("    sub %s, 8\n", regSP);
+            //printf("    sd %s, 0(%s)\n", regR[ibc.dst], regSP);
+        }
+    }
+
+    void AssemblyGeneratorRV64::traceflt(InstructionByteCode& ibc) {
+        if (trace) {
+            //printf("    sub %s, 8\n", regSP);
+            //printf("    sd %s, 0(%s)\n", regZero, regSP);
+        }
+    }
+
+    void AssemblyGeneratorRV64::tracenop(InstructionByteCode& ibc) {
+        if (trace) {
+            //printf("    sub %s, 8\n", regSP);
+            //printf("    sd %s, 0(%s)\n", regZero, regSP);
+        }
+    }
+
+    // x_tmp1 holds the offset in scratchpad, either for load or store
+    void AssemblyGeneratorRV64::get_offset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_load) {
+        uint8_t reg = getIRegIdx(ibc, nreg, instr, is_load);
+    
+        //x_tmp1 = *ibc.isrc + ibc.imm
+        if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
+            printf("    addi x%d, x%d, %d      ; load imm32\n", x_tmp1, reg, (int32_t)ibc.simm);
+        } else {
+            // x_tmp1 = li_imm32(ibc.imm)
+            if (low12(ibc.simm) >= 0) {
+                printf("    lui x%d, %d            ; load imm32\n", x_tmp1, hi20(ibc.imm));
+            } else {
+                printf("    lui x%d, %d            ; load imm32\n", x_tmp1, hi20(ibc.imm) + 1);
+            }
+            printf("    addiw x%d, x%d, %d\n", x_tmp1, x_tmp1, low12(ibc.imm));
+
+            // x_tmp1 = x_tmp1 + isrc
+            if (reg != x_zero)
+                printf("    add x%d, x%d, x%d          ; offset = src + imm32\n", x_tmp1, x_tmp1, reg);
+        }
+
+        // x_tmp1 = x_tmp1 & mask: offset in scratchpad
+        if ((instr.src % RegistersCount == instr.dst % RegistersCount) || instr.getModCond() >= StoreL3Condition){ 
+            printf("    and x%d, x%d, x%d           ; offset & scratchpad_mask\n", x_tmp1, x_tmp1, x_L3_mask);
+        } else {
+            printf("    and x%d, x%d, x%d           ; offset & scratchpad_mask\n", x_tmp1, x_tmp1, instr.getModMem() ? x_L1_mask : x_L2_mask);
+        }
+    }
+
+    // x_tmp1 holds 64-bit value from scratchpad
+    void AssemblyGeneratorRV64::load64(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr) {
+        get_offset(ibc, nreg, instr, true);
+        printf("    add x%d, x%d, x%d           ; offset + scratchpad\n", x_tmp1, x_tmp1, x_scratchpad);
+        printf("    ld x%d, 0(x%d)\n", x_tmp1, x_tmp1);
+    }
+
+    // read 8-byte to x_tmp1/x_tmp2, 4-byte each
+    void AssemblyGeneratorRV64::load32_x2(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr) {
+        get_offset(ibc, nreg, instr, true);
+        printf("    add x%d, x%d, x%d\n", x_tmp2, x_tmp1, x_scratchpad);
+        printf("    lw x%d, 0(x%d)\n", x_tmp1, x_tmp2);
+        printf("    lw x%d, 4(x%d)\n", x_tmp2, x_tmp2);
+    }
+    
+
+    void AssemblyGeneratorRV64::h_IADD_RS(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+        uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
+        
+        printf("    slli x%d, x%d, %d\n", x_tmp1, src, ibc.shift);
+
+        if (ibc.imm != 0) {
+            if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
+                printf("    addi x%d, x%d, %d\n", x_tmp1, x_tmp1, (int32_t)ibc.simm);
+            } else {
+                // x_tmp2 = li_imm32(ibc.imm)
+                if (low12(ibc.simm) >= 0) {
+                    printf("    lui x%d, %d\n", x_tmp2, hi20(ibc.imm));
+                } else {
+                    printf("    lui x%d, %d\n", x_tmp2, hi20(ibc.imm) + 1);
+                }
+                printf("    addiw x%d, x%d, %d\n", x_tmp2, x_tmp2, low12(ibc.imm));
+
+                // x_tmp1 = x_tmp1 + x_tmp2
+                printf("    add x%d, x%d, x%d\n", x_tmp1, x_tmp1, x_tmp2);
             }
         }
-        if (zero_31_n)
-            return true;
-    
-        uint8_t bitn = (imm >> (n-1)) & 0x1;
-        for (int i = n; i < 32; i ++) {
-            uint8_t bitx = (imm >> i) & 0x1;
-            if (bitn != bitx)
-                return false;
-        }
-        return true;
+
+        printf("    add x%d, x%d, x%d\n", dst, dst, x_tmp1);
+    }
+
+    void AssemblyGeneratorRV64::h_IADD_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+        
+        load64(ibc, nreg, prog(i));
+        printf("    add x%d, x%d, x%d\n", dst, dst, x_tmp1);
+    }
+
+    void AssemblyGeneratorRV64::h_ISUB_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_ISUB_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IMUL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IMUL_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IMULH_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IMULH_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_ISMULH_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_ISMULH_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_INEG_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IXOR_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IXOR_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IROR_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IROL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_IMUL_RCP(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_ISWAP_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FSWAP_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FADD_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        printf("    fadd.d f%d, f%d, f%d\n", 
+            getFRegIdx(ibc, nreg, prog(i), false, true),
+            getFRegIdx(ibc, nreg, prog(i), false, true),
+            getFRegIdx(ibc, nreg, prog(i), true,  true));
+        printf("    fadd.d f%d, f%d, f%d\n", 
+            getFRegIdx(ibc, nreg, prog(i), false, false),
+            getFRegIdx(ibc, nreg, prog(i), false, false),
+            getFRegIdx(ibc, nreg, prog(i), true,  false));
+    }
+
+    void AssemblyGeneratorRV64::h_FADD_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FSUB_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FSUB_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FSCAL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FMUL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FDIV_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_FSQRT_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_CFROUND(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_CBRANCH(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_ISTORE(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+    }
+
+    void AssemblyGeneratorRV64::h_NOP(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
     }
 
 
-	void AssemblyGeneratorRV64::generateProgram(Program& prog) {
-		for (unsigned i = 0; i < RegistersCount; ++i) {
-			registerUsage[i] = -1;
-		}
-		asmCode.str(std::string()); //clear
-		for (unsigned i = 0; i < prog.getSize(); ++i) {
-			asmCode << "randomx_isn_" << i << ":" << std::endl;
-			Instruction& instr = prog(i);
-			instr.src %= RegistersCount;
-			instr.dst %= RegistersCount;
-			generateCode(instr, i);
-		}
-	}
 
-	void AssemblyGeneratorRV64::generateAsm(SuperscalarProgram& prog) {
-#if (0)
-		asmCode.str(std::string()); //clear
-#ifdef RANDOMX_ALIGN
-		asmCode << "ALIGN 16" << std::endl;
-#endif
-		for (unsigned i = 0; i < prog.getSize(); ++i) {
-			Instruction& instr = prog(i);
-			switch ((SuperscalarInstructionType)instr.opcode)
-			{
-			case SuperscalarInstructionType::ISUB_R:
-				asmCode << "sub " << regR[instr.dst] << ", " << regR[instr.src] << std::endl;
-				break;
-			case SuperscalarInstructionType::IXOR_R:
-				asmCode << "xor " << regR[instr.dst] << ", " << regR[instr.src] << std::endl;
-				break;
-			case SuperscalarInstructionType::IADD_RS:
-				asmCode << "lea " << regR[instr.dst] << ", [" << regR[instr.dst] << "+" << regR[instr.src] << "*" << (1 << (instr.getModShift())) << "]" << std::endl;
-				break;
-			case SuperscalarInstructionType::IMUL_R:
-				asmCode << "imul " << regR[instr.dst] << ", " << regR[instr.src] << std::endl;
-				break;
-			case SuperscalarInstructionType::IROR_C:
-				asmCode << "ror " << regR[instr.dst] << ", " << instr.getImm32() << std::endl;
-				break;
-			case SuperscalarInstructionType::IADD_C7:
-				asmCode << "add " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-				break;
-			case SuperscalarInstructionType::IXOR_C7:
-				asmCode << "xor " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-				break;
-			case SuperscalarInstructionType::IADD_C8:
-				asmCode << "add " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-#ifdef RANDOMX_ALIGN
-				asmCode << "nop" << std::endl;
-#endif
-				break;
-			case SuperscalarInstructionType::IXOR_C8:
-				asmCode << "xor " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-#ifdef RANDOMX_ALIGN
-				asmCode << "nop" << std::endl;
-#endif
-				break;
-			case SuperscalarInstructionType::IADD_C9:
-				asmCode << "add " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-#ifdef RANDOMX_ALIGN
-				asmCode << "xchg ax, ax ;nop" << std::endl;
-#endif
-				break;
-			case SuperscalarInstructionType::IXOR_C9:
-				asmCode << "xor " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-#ifdef RANDOMX_ALIGN
-				asmCode << "xchg ax, ax ;nop" << std::endl;
-#endif
-				break;
-			case SuperscalarInstructionType::IMULH_R:
-				asmCode << "mov rax, " << regR[instr.dst] << std::endl;
-				asmCode << "mul " << regR[instr.src] << std::endl;
-				asmCode << "mov " << regR[instr.dst] << ", rdx" << std::endl;
-				break;
-			case SuperscalarInstructionType::ISMULH_R:
-				asmCode << "mov rax, " << regR[instr.dst] << std::endl;
-				asmCode << "imul " << regR[instr.src] << std::endl;
-				asmCode << "mov " << regR[instr.dst] << ", rdx" << std::endl;
-				break;
-			case SuperscalarInstructionType::IMUL_RCP:
-				asmCode << "mov rax, " << (int64_t)randomx_reciprocal(instr.getImm32()) << std::endl;
-				asmCode << "imul " << regR[instr.dst] << ", rax" << std::endl;
-				break;
-			default:
-				UNREACHABLE;
-			}
-		}
-#endif
-	}
 
-	void AssemblyGeneratorRV64::traceint(Instruction& instr) {
-		if (trace) {
-			//asmCode << "\tpush " << regR[instr.dst] << std::endl;
-            asmCode << "\tsub " << regSP << 8 << std::endl;
-            asmCode << "\tsd " << regR[instr.dst] << ", 0(" << regSP << ")" << std::endl;
-		}
-	}
 
-	void AssemblyGeneratorRV64::traceflt(Instruction& instr) {
-		if (trace) {
-			//asmCode << "\tpush 0" << std::endl;
-            asmCode << "\tsub " << regSP << 8 << std::endl;
-            asmCode << "\tsd " << regZero << ", 0(" << regSP << ")" << std::endl;
-		}
-	}
-
-	void AssemblyGeneratorRV64::tracenop(Instruction& instr) {
-		if (trace) {
-			//asmCode << "\tpush 0" << std::endl;
-            asmCode << "\tsub " << regSP << 8 << std::endl;
-            asmCode << "\tsd " << regZero << ", 0(" << regSP << ")" << std::endl;
-		}
-	}
-
-	void AssemblyGeneratorRV64::generateCode(Instruction& instr, int i) {
-		asmCode << "\t; " << instr;
-		auto generator = engine[instr.opcode];
-		(this->*generator)(instr, i);
-	}
-
-	void AssemblyGeneratorRV64::genAddressReg(Instruction& instr, const char* reg = "eax") {
-#if (0)
-		asmCode << "\tlea " << reg << ", [" << regR32[instr.src] << std::showpos << (int32_t)instr.getImm32() << std::noshowpos << "]" << std::endl;
-		asmCode << "\tand " << reg << ", " << ((instr.getModMem()) ? ScratchpadL1Mask : ScratchpadL2Mask) << std::endl;
-#endif
-	}
-
-	void AssemblyGeneratorRV64::genAddressRegDst(Instruction& instr, int maskAlign = 8) {
-#if (0)
-		asmCode << "\tlea eax, [" << regR32[instr.dst] << std::showpos << (int32_t)instr.getImm32() << std::noshowpos << "]" << std::endl;
-		int mask;
-		if (instr.getModCond() < StoreL3Condition) {
-			mask = instr.getModMem() ? ScratchpadL1Mask : ScratchpadL2Mask;
-		}
-		else {
-			mask = ScratchpadL3Mask;
-		}
-		asmCode << "\tand eax" << ", " << (mask & (-maskAlign)) << std::endl;
-#endif
-	}
-
-	int32_t AssemblyGeneratorRV64::genAddressImm(Instruction& instr) {
-		return (int32_t)instr.getImm32() & ScratchpadL3Mask;
-	}
-
-	void AssemblyGeneratorRV64::h_IADD_RS(Instruction& instr, int i) {
-#if (0)	
-		registerUsage[instr.dst] = i;
-        asmCode << "\tslli " << regTmp1 << ", " << regR[instr.src] << ", " << instr.getModShift() << std::endl;
-        asmCode << "\tadd " << regR[instr.dst] << ", " << regR[instr.dst] << ", " << regTmp1 << std::endl;
-		if(instr.dst == RegisterNeedsDisplacement) {
-        }
-		traceint(instr);
-#endif        
-	}
-
-	void AssemblyGeneratorRV64::h_IADD_M(Instruction& instr, int i) {
-#if (0)	
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			genAddressReg(instr);
-			asmCode << "\tadd " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+rax]" << std::endl;
-		}
-		else {
-			asmCode << "\tadd " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+" << genAddressImm(instr) << "]" << std::endl;
-		}
-		traceint(instr);
-#endif        
-	}
-
-	void AssemblyGeneratorRV64::h_ISUB_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			asmCode << "\tsub " << regR[instr.dst] << ", " << regR[instr.src] << std::endl;
-		}
-		else {
-			asmCode << "\tsub " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-		}
-		traceint(instr);
-#endif
-    }
-
-	void AssemblyGeneratorRV64::h_ISUB_M(Instruction& instr, int i) {
-#if (0)
-        registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			genAddressReg(instr);
-			asmCode << "\tsub " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+rax]" << std::endl;
-		}
-		else {
-			asmCode << "\tsub " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+" << genAddressImm(instr) << "]" << std::endl;
-		}
-		traceint(instr);
-#endif        
-	}
-
-	void AssemblyGeneratorRV64::h_IMUL_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			asmCode << "\timul " << regR[instr.dst] << ", " << regR[instr.src] << std::endl;
-		}
-		else {
-			asmCode << "\timul " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-		}
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IMUL_M(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			genAddressReg(instr);
-			asmCode << "\timul " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+rax]" << std::endl;
-		}
-		else {
-			asmCode << "\timul " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+" << genAddressImm(instr) << "]" << std::endl;
-		}
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IMULH_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		asmCode << "\tmov rax, " << regR[instr.dst] << std::endl;
-		asmCode << "\tmul " << regR[instr.src] << std::endl;
-		asmCode << "\tmov " << regR[instr.dst] << ", rdx" << std::endl;
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IMULH_M(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			genAddressReg(instr, "ecx");
-			asmCode << "\tmov rax, " << regR[instr.dst] << std::endl;
-			asmCode << "\tmul qword ptr [" << regScratchpadAddr << "+rcx]" << std::endl;
-		}
-		else {
-			asmCode << "\tmov rax, " << regR[instr.dst] << std::endl;
-			asmCode << "\tmul qword ptr [" << regScratchpadAddr << "+" << genAddressImm(instr) << "]" << std::endl;
-		}
-		asmCode << "\tmov " << regR[instr.dst] << ", rdx" << std::endl;
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_ISMULH_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		asmCode << "\tmov rax, " << regR[instr.dst] << std::endl;
-		asmCode << "\timul " << regR[instr.src] << std::endl;
-		asmCode << "\tmov " << regR[instr.dst] << ", rdx" << std::endl;
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_ISMULH_M(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			genAddressReg(instr, "ecx");
-			asmCode << "\tmov rax, " << regR[instr.dst] << std::endl;
-			asmCode << "\timul qword ptr [" << regScratchpadAddr << "+rcx]" << std::endl;
-		}
-		else {
-			asmCode << "\tmov rax, " << regR[instr.dst] << std::endl;
-			asmCode << "\timul qword ptr [" << regScratchpadAddr << "+" << genAddressImm(instr) << "]" << std::endl;
-		}
-		asmCode << "\tmov " << regR[instr.dst] << ", rdx" << std::endl;
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_INEG_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		asmCode << "\tneg " << regR[instr.dst] << std::endl;
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IXOR_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			asmCode << "\txor " << regR[instr.dst] << ", " << regR[instr.src] << std::endl;
-		}
-		else {
-			asmCode << "\txor " << regR[instr.dst] << ", " << (int32_t)instr.getImm32() << std::endl;
-		}
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IXOR_M(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			genAddressReg(instr);
-			asmCode << "\txor " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+rax]" << std::endl;
-		}
-		else {
-			asmCode << "\txor " << regR[instr.dst] << ", qword ptr [" << regScratchpadAddr << "+" << genAddressImm(instr) << "]" << std::endl;
-		}
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IROR_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			asmCode << "\tmov ecx, " << regR32[instr.src] << std::endl;
-			asmCode << "\tror " << regR[instr.dst] << ", cl" << std::endl;
-		}
-		else {
-			asmCode << "\tror " << regR[instr.dst] << ", " << (instr.getImm32() & 63) << std::endl;
-		}
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IROL_R(Instruction& instr, int i) {
-#if (0)
-		registerUsage[instr.dst] = i;
-		if (instr.src != instr.dst) {
-			asmCode << "\tmov ecx, " << regR32[instr.src] << std::endl;
-			asmCode << "\trol " << regR[instr.dst] << ", cl" << std::endl;
-		}
-		else {
-			asmCode << "\trol " << regR[instr.dst] << ", " << (instr.getImm32() & 63) << std::endl;
-		}
-		traceint(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_IMUL_RCP(Instruction& instr, int i) {
-#if (0)
-		uint64_t divisor = instr.getImm32();
-		if (!isZeroOrPowerOf2(divisor)) {
-			registerUsage[instr.dst] = i;
-			asmCode << "\tmov rax, " << randomx_reciprocal(divisor) << std::endl;
-			asmCode << "\timul " << regR[instr.dst] << ", rax" << std::endl;
-			traceint(instr);
-		}
-		else {
-			tracenop(instr);
-		}
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_ISWAP_R(Instruction& instr, int i) {
-#if (0)
-		if (instr.src != instr.dst) {
-			registerUsage[instr.dst] = i;
-			registerUsage[instr.src] = i;
-			asmCode << "\txchg " << regR[instr.dst] << ", " << regR[instr.src] << std::endl;
-			traceint(instr);
-		}
-		else {
-			tracenop(instr);
-		}
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FSWAP_R(Instruction& instr, int i) {
-#if (0)
-		asmCode << "\tshufpd " << regFE[instr.dst] << ", " << regFE[instr.dst] << ", 1" << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FADD_R(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		instr.src %= RegisterCountFlt;
-		asmCode << "\taddpd " << regF[instr.dst] << ", " << regA[instr.src] << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FADD_M(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		genAddressReg(instr);
-		asmCode << "\tcvtdq2pd " << tempRegx << ", qword ptr [" << regScratchpadAddr << "+rax]" << std::endl;
-		asmCode << "\taddpd " << regF[instr.dst] << ", " << tempRegx << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FSUB_R(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		instr.src %= RegisterCountFlt;
-		asmCode << "\tsubpd " << regF[instr.dst] << ", " << regA[instr.src] << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FSUB_M(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		genAddressReg(instr);
-		asmCode << "\tcvtdq2pd " << tempRegx << ", qword ptr [" << regScratchpadAddr << "+rax]" << std::endl;
-		asmCode << "\tsubpd " << regF[instr.dst] << ", " << tempRegx << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FSCAL_R(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		asmCode << "\txorps " << regF[instr.dst] << ", " << scaleMaskReg << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FMUL_R(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		instr.src %= RegisterCountFlt;
-		asmCode << "\tmulpd " << regE[instr.dst] << ", " << regA[instr.src] << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FDIV_M(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		genAddressReg(instr);
-		asmCode << "\tcvtdq2pd " << tempRegx << ", qword ptr [" << regScratchpadAddr << "+rax]" << std::endl;
-		asmCode << "\tandps " << tempRegx << ", " << mantissaMaskReg << std::endl;
-		asmCode << "\torps " << tempRegx << ", " << exponentMaskReg << std::endl;
-		asmCode << "\tdivpd " << regE[instr.dst] << ", " << tempRegx << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_FSQRT_R(Instruction& instr, int i) {
-#if (0)
-		instr.dst %= RegisterCountFlt;
-		asmCode << "\tsqrtpd " << regE[instr.dst] << ", " << regE[instr.dst] << std::endl;
-		traceflt(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_CFROUND(Instruction& instr, int i) {
-#if (0)
-		asmCode << "\tmov rax, " << regR[instr.src] << std::endl;
-		int rotate = (13 - (instr.getImm32() & 63)) & 63;
-		if (rotate != 0)
-			asmCode << "\trol rax, " << rotate << std::endl;
-		asmCode << "\tand eax, 24576" << std::endl;
-		asmCode << "\tor eax, 40896" << std::endl;
-		asmCode << "\tpush rax" << std::endl;
-		asmCode << "\tldmxcsr dword ptr [rsp]" << std::endl;
-		asmCode << "\tpop rax" << std::endl;
-		tracenop(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_CBRANCH(Instruction& instr, int i) {
-#if (0)
-		int reg = instr.dst;
-		int target = registerUsage[reg] + 1;
-		int shift = instr.getModCond() + ConditionOffset;
-		int32_t imm = instr.getImm32() | (1L << shift);
-		if (ConditionOffset > 0 || shift > 0)
-			imm &= ~(1L << (shift - 1));
-		asmCode << "\tadd " << regR[reg] << ", " << imm << std::endl;
-		asmCode << "\ttest " << regR[reg] << ", " << (ConditionMask << shift) << std::endl;
-		asmCode << "\tjz randomx_isn_" << target << std::endl;
-		//mark all registers as used
-		for (unsigned j = 0; j < RegistersCount; ++j) {
-			registerUsage[j] = i;
-		}
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_ISTORE(Instruction& instr, int i) {
-#if (0)
-		genAddressRegDst(instr);
-		asmCode << "\tmov qword ptr [" << regScratchpadAddr << "+rax], " << regR[instr.src] << std::endl;
-		tracenop(instr);
-#endif
-	}
-
-	void AssemblyGeneratorRV64::h_NOP(Instruction& instr, int i) {
-#if (0)
-		asmCode << "\tnop" << std::endl;
-		tracenop(instr);
-#endif
-	}
-
-#include "instruction_weights.hpp"
-#define INST_HANDLE(x) REPN(&AssemblyGeneratorRV64::h_##x, WT(x))
-
-	InstructionGeneratorRV64 AssemblyGeneratorRV64::engine[256] = {
-		INST_HANDLE(IADD_RS)
-		INST_HANDLE(IADD_M)
-		INST_HANDLE(ISUB_R)
-		INST_HANDLE(ISUB_M)
-		INST_HANDLE(IMUL_R)
-		INST_HANDLE(IMUL_M)
-		INST_HANDLE(IMULH_R)
-		INST_HANDLE(IMULH_M)
-		INST_HANDLE(ISMULH_R)
-		INST_HANDLE(ISMULH_M)
-		INST_HANDLE(IMUL_RCP)
-		INST_HANDLE(INEG_R)
-		INST_HANDLE(IXOR_R)
-		INST_HANDLE(IXOR_M)
-		INST_HANDLE(IROR_R)
-		INST_HANDLE(IROL_R)
-		INST_HANDLE(ISWAP_R)
-		INST_HANDLE(FSWAP_R)
-		INST_HANDLE(FADD_R)
-		INST_HANDLE(FADD_M)
-		INST_HANDLE(FSUB_R)
-		INST_HANDLE(FSUB_M)
-		INST_HANDLE(FSCAL_R)
-		INST_HANDLE(FMUL_R)
-		INST_HANDLE(FDIV_M)
-		INST_HANDLE(FSQRT_R)
-		INST_HANDLE(CBRANCH)
-		INST_HANDLE(CFROUND)
-		INST_HANDLE(ISTORE)
-		INST_HANDLE(NOP)
-	};
 }

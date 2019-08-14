@@ -13,21 +13,21 @@
     | zero  |  0  | x_zero                                                       |
     |  ra   |  1  | return address                                               |
     |  sp   |  2  | stack pointer                                                |
-    |  gp   |  3  |                                                              |
-    |  tp   |  4  |                                                              |
+    |  gp   |  3  | global pointer                                               |
+    |  tp   |  4  | thread pointer                                               |
     |       |     |                                                              |
-    |  t0   |  5  | regfile addr, init input?                                    |
+    |  t0   |  5  | x_config: config(entropy) base addr                          |
     |  t1   |  6  | memory registers "ma" (high 32 bits), "mx" (low 32 bits)     |
-    |  t2   |  7  | scratchpad pointer                                           |
-    |  t3   | 28  | iteration counter "ic"                                       |
+    |  t2   |  7  | x_ic: iteration counter                                      |
+    |  t3   | 28  | x_scratchpad: scratchpad base addr                           |
     |  t4   | 29  | x_tmp1                                                       |
     |  t5   | 30  | x_tmp2                                                       |
-    |  t6   | 31  | x_n64, const 64, used to calc shamt in ROR/ROL               |
+    |  t6   | 31  | x_n64, const 64, used in ROR/ROL                             |
     |       |     |                                                              |
-    | s0/fp |  8  |                                                              |
-    |  s1   |  9  | L1 Mask, need save                                           |
-    |  s2   | 18  | L2 Mask, need save                                           |
-    |  s3   | 19  | L3 Mask, need save                                           |
+    | s0/fp |  8  | frame pointer                                                |
+    |  s1   |  9  | x_L1_mask                                                    |
+    |  s2   | 18  | x_L2_mask                                                    |
+    |  s3   | 19  | x_L3_mask                                                    |
     |  s4   | 20  | x_scale_mask: 64-bit scale mask (0x80f0000000000000)         |
     |  s5   | 21  | x_E_and_mask: 64-bit `and` mask (0x00ffffffffffffff)         |
     |  s6   | 22  | x_E_or_mask_l: lo 64-bit `or` mask (0x3*00000000******)      |
@@ -55,35 +55,35 @@
     |  abi  | idx |                                                              |
     | name  | (f) |                                                              |
     +-------+-----+--------------------------------------------------------------+
-    |  fa0  | 10  | "fl0"                                                        |
-    |  fa1  | 11  | "fl1"                                                        |
-    |  fa2  | 12  | "fl2"                                                        |
-    |  fa3  | 13  | "fl3"                                                        |
-    |  fa4  | 14  | "fh0"                                                        |
-    |  fa5  | 15  | "fh1"                                                        |
-    |  fa6  | 16  | "fh2"                                                        |
-    |  fa7  | 17  | "fh3"                                                        |
+    |  fa0  | 10  | "f0l"                                                        |
+    |  fa1  | 11  | "f0h"                                                        |
+    |  fa2  | 12  | "f1l"                                                        |
+    |  fa3  | 13  | "f1h"                                                        |
+    |  fa4  | 14  | "f2l"                                                        |
+    |  fa5  | 15  | "f2h"                                                        |
+    |  fa6  | 16  | "f3l"                                                        |
+    |  fa7  | 17  | "f3h"                                                        |
     |       |     |                                                              |
-    |  ft0  |  0  | "el0"                                                        |
-    |  ft1  |  1  | "el1"                                                        |
-    |  ft2  |  2  | "el2"                                                        |
-    |  ft3  |  3  | "el3"                                                        |
-    |  ft4  |  4  | "eh0"                                                        |
-    |  ft5  |  5  | "eh1"                                                        |
-    |  ft6  |  6  | "eh2"                                                        |
-    |  ft7  |  7  | "eh3"                                                        |
+    |  ft0  |  0  | "e0l"                                                        |
+    |  ft1  |  1  | "e0h"                                                        |
+    |  ft2  |  2  | "e1l"                                                        |
+    |  ft3  |  3  | "e1h"                                                        |
+    |  ft4  |  4  | "e2l"                                                        |
+    |  ft5  |  5  | "e2h"                                                        |
+    |  ft6  |  6  | "e3l"                                                        |
+    |  ft7  |  7  | "e3h"                                                        |
     |       |     |                                                              |
-    |  fs0  |  8  | "al0", need save                                             |
-    |  fs1  |  9  | "al1", need save                                             |
-    |  fs2  | 18  | "al2", need save                                             |
-    |  fs3  | 19  | "al3", need save                                             |
-    |  fs4  | 20  | "ah0", need save                                             |
-    |  fs5  | 21  | "ah1", need save                                             |
-    |  fs6  | 22  | "ah2", need save                                             |
-    |  fs7  | 23  | "ah3", need save                                             |
+    |  fs0  |  8  | "a0l"                                                        |
+    |  fs1  |  9  | "a0h"                                                        |
+    |  fs2  | 18  | "a1l"                                                        |
+    |  fs3  | 19  | "a1h"                                                        |
+    |  fs4  | 20  | "a2l"                                                        |
+    |  fs5  | 21  | "a2h"                                                        |
+    |  fs6  | 22  | "a3l"                                                        |
+    |  fs7  | 23  | "a3h"                                                        |
     |             |                                                              |
-    |  ft8  | 28  | fl_tmp: lo-64 of temporary                                   |
-    |  ft9  | 29  | fh_tmp: hi-64 of temporary                                   |
+    |  ft8  | 28  | f_tmpl: lo-64 of temporary                                   |
+    |  ft9  | 29  | f_tmph: hi-64 of temporary                                   |
     |  ft10 | 30  |                                                              |
     |  ft11 | 31  |                                                              |
     |  fs8  | 24  |                                                              |
@@ -92,5 +92,4 @@
     |  fs11 | 27  |                                                              |
     +-------+-----+--------------------------------------------------------------+
 
-  NB: "need save" is for abi call
 */

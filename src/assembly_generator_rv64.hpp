@@ -31,63 +31,62 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.hpp"
 #include <sstream>
 
+#include "bytecode_machine.hpp"
+
 namespace randomx {
 
 	class Program;
-	class SuperscalarProgram;
 	class AssemblyGeneratorRV64;
 	class Instruction;
-
-	typedef void(AssemblyGeneratorRV64::*InstructionGeneratorRV64)(Instruction&, int);
+    class BytecodeMachine;
 
 	class AssemblyGeneratorRV64 {
 	public:
 		void generateProgram(Program& prog);
-		void generateAsm(SuperscalarProgram& prog);
-		void printCode(std::ostream& os) {
-			os << asmCode.rdbuf();
-		}
-	private:
-		void genAddressReg(Instruction&, const char*);
-		void genAddressRegDst(Instruction&, int);
-		int32_t genAddressImm(Instruction&);
-		void generateCode(Instruction&, int);
-		void traceint(Instruction&);
-		void traceflt(Instruction&);
-		void tracenop(Instruction&);
-		void h_IADD_RS(Instruction&, int);
-		void h_IADD_M(Instruction&, int);
-		void h_ISUB_R(Instruction&, int);
-		void h_ISUB_M(Instruction&, int);
-		void h_IMUL_R(Instruction&, int);
-		void h_IMUL_M(Instruction&, int);
-		void h_IMULH_R(Instruction&, int);
-		void h_IMULH_M(Instruction&, int);
-		void h_ISMULH_R(Instruction&, int);
-		void h_ISMULH_M(Instruction&, int);
-		void h_IMUL_RCP(Instruction&, int);
-		void h_INEG_R(Instruction&, int);
-		void h_IXOR_R(Instruction&, int);
-		void h_IXOR_M(Instruction&, int);
-		void h_IROR_R(Instruction&, int);
-		void h_IROL_R(Instruction&, int);
-		void h_ISWAP_R(Instruction&, int);
-		void h_FSWAP_R(Instruction&, int);
-		void h_FADD_R(Instruction&, int);
-		void h_FADD_M(Instruction&, int);
-		void h_FSUB_R(Instruction&, int);
-		void h_FSUB_M(Instruction&, int);
-		void h_FSCAL_R(Instruction&, int);
-		void h_FMUL_R(Instruction&, int);
-		void h_FDIV_M(Instruction&, int);
-		void h_FSQRT_R(Instruction&, int);
-		void h_CBRANCH(Instruction&, int);
-		void h_CFROUND(Instruction&, int);
-		void h_ISTORE(Instruction&, int);
-		void h_NOP(Instruction&, int);
 
-		static InstructionGeneratorRV64 engine[256];
-		std::stringstream asmCode;
-		int registerUsage[RegistersCount];
+	private:
+		void traceint(InstructionByteCode&);
+		void traceflt(InstructionByteCode&);
+		void tracenop(InstructionByteCode&);
+
+		void generateCode(InstructionByteCode& ibc, NativeRegisterFile*, Program&, int);
+        uint8_t getIRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_src);
+        uint8_t getFRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_src, bool is_low);
+
+        void get_offset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_load);
+        void load64(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&);
+        void load32_x2(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&);
+        
+		void h_IADD_RS(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IADD_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_ISUB_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_ISUB_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IMUL_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IMUL_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IMULH_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IMULH_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_ISMULH_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_ISMULH_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IMUL_RCP(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_INEG_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IXOR_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IXOR_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IROR_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_IROL_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_ISWAP_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FSWAP_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FADD_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FADD_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FSUB_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FSUB_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FSCAL_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FMUL_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FDIV_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_FSQRT_R(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_CBRANCH(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_CFROUND(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_ISTORE(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+		void h_NOP(InstructionByteCode&, NativeRegisterFile*, Program&, int);
+
 	};
 }
