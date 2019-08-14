@@ -34,8 +34,37 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "superscalar.hpp"
 
 #include "instruction.hpp"
+#include "stdarg.h"
 
 namespace randomx {
+
+#define INDENT_SIZE      4
+#define COMMENT_COL     30
+
+    void print_insn(const char* comment, const char *format,...) {
+        int r;
+        va_list ap;
+
+        // indent spaces
+        for (int i = 0; i < INDENT_SIZE; i ++)
+            printf(" ");
+
+        // instruction proper
+        va_start(ap,format);
+        r = vprintf(format,ap);
+        va_end(ap);
+
+        if (!comment) {
+            printf("\n");
+        } else {
+            // space between instruction and comments
+            for (int i = 0; i < (COMMENT_COL - INDENT_SIZE - r); ++i)
+                printf(" ");
+
+            // comment and newline
+            printf("; %s\n", comment);
+        }
+    }
 
     // integer register (x?) index for r0~7
     static uint8_t s_ireg_map[RegistersCount] = { 10, 11, 12, 13, 14, 15, 16, 17 };
@@ -59,13 +88,13 @@ namespace randomx {
     static uint8_t x_E_and_mask = 21;
     static uint8_t x_E_or_mask_l = 22;
     static uint8_t x_E_or_mask_h = 23;
-    
+
 
 
     uint8_t AssemblyGeneratorRV64::getIRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_src) {
 
         // handle special case when `ibc.isrc=&BytecodeMachine::zero` for *_M instructions
-        if ((instr.src % RegistersCount) == (instr.dst % RegistersCount) && 
+        if ((instr.src % RegistersCount) == (instr.dst % RegistersCount) &&
             (ibc.type == InstructionType::IADD_M ||
              ibc.type == InstructionType::ISUB_M ||
              ibc.type == InstructionType::IMUL_M ||
@@ -77,9 +106,9 @@ namespace randomx {
 
         int offset = (uint8_t*)(is_src? ibc.isrc : ibc.idst) - (uint8_t*)nreg;
         offset /= 8;
-        
+
         //if (is_src && (offset < 0 || offset >= RegistersCount))  return x_zero;
-        
+
         assert(offset < RegistersCount);
         return s_ireg_map[offset];
     }
@@ -107,7 +136,9 @@ namespace randomx {
 
         for (unsigned i = 0; i < prog.getSize(); ++i) {
             // VM instruction
-            printf("L%03d:                           # ", i);
+            printf("L%03d:", i);
+            for (int i = 0; i < COMMENT_COL - 5; i ++) printf(" ");
+            printf("# ");
             std::cout << prog(i);
 
             // native instructions
@@ -176,79 +207,87 @@ namespace randomx {
     // x_tmp1 holds the offset in scratchpad, either for load or store
     void AssemblyGeneratorRV64::get_offset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_load) {
         uint8_t reg = getIRegIdx(ibc, nreg, instr, is_load);
-    
+
         //x_tmp1 = *ibc.isrc + ibc.imm
         if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
-            printf("    addi x%d, x%d, %d      ; load imm32\n", x_tmp1, reg, (int32_t)ibc.simm);
+            print_insn("load imm32", "addi x%d, x%d, %d", x_tmp1, reg, (int32_t)ibc.simm);
         } else {
             // x_tmp1 = li_imm32(ibc.imm)
             if (low12(ibc.simm) >= 0) {
-                printf("    lui x%d, %d            ; load imm32\n", x_tmp1, hi20(ibc.imm));
+                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm));
             } else {
-                printf("    lui x%d, %d            ; load imm32\n", x_tmp1, hi20(ibc.imm) + 1);
+                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
             }
-            printf("    addiw x%d, x%d, %d\n", x_tmp1, x_tmp1, low12(ibc.imm));
+            print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
 
             // x_tmp1 = x_tmp1 + isrc
             if (reg != x_zero)
-                printf("    add x%d, x%d, x%d          ; offset = src + imm32\n", x_tmp1, x_tmp1, reg);
+                print_insn("offset=src+imm32", "add x%d, x%d, x%d", x_tmp1, x_tmp1, reg);
         }
 
         // x_tmp1 = x_tmp1 & mask: offset in scratchpad
-        if ((instr.src % RegistersCount == instr.dst % RegistersCount) || instr.getModCond() >= StoreL3Condition){ 
-            printf("    and x%d, x%d, x%d           ; offset & scratchpad_mask\n", x_tmp1, x_tmp1, x_L3_mask);
+        if ((instr.src % RegistersCount == instr.dst % RegistersCount) || instr.getModCond() >= StoreL3Condition){
+            print_insn("offset & L3 mask", "and x%d, x%d, x%d", x_tmp1, x_tmp1, x_L3_mask);
         } else {
-            printf("    and x%d, x%d, x%d           ; offset & scratchpad_mask\n", x_tmp1, x_tmp1, instr.getModMem() ? x_L1_mask : x_L2_mask);
+            if (instr.getModMem())
+                print_insn("offset & L1 mask", "and x%d, x%d, x%d", x_tmp1, x_tmp1, x_L1_mask);
+            else
+                print_insn("offset & L2 mask", "and x%d, x%d, x%d", x_tmp1, x_tmp1, x_L2_mask);
         }
     }
 
     // x_tmp1 holds 64-bit value from scratchpad
     void AssemblyGeneratorRV64::load64(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr) {
         get_offset(ibc, nreg, instr, true);
-        printf("    add x%d, x%d, x%d           ; offset + scratchpad\n", x_tmp1, x_tmp1, x_scratchpad);
-        printf("    ld x%d, 0(x%d)\n", x_tmp1, x_tmp1);
+        print_insn("offset+scratchpad", "add x%d, x%d, x%d", x_tmp1, x_tmp1, x_scratchpad);
+        print_insn(nullptr, "ld x%d, 0(x%d)", x_tmp1, x_tmp1);
     }
 
     // read 8-byte to x_tmp1/x_tmp2, 4-byte each
     void AssemblyGeneratorRV64::load32_x2(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr) {
         get_offset(ibc, nreg, instr, true);
-        printf("    add x%d, x%d, x%d\n", x_tmp2, x_tmp1, x_scratchpad);
-        printf("    lw x%d, 0(x%d)\n", x_tmp1, x_tmp2);
-        printf("    lw x%d, 4(x%d)\n", x_tmp2, x_tmp2);
+        print_insn("offset+scratchpad", "add x%d, x%d, x%d", x_tmp2, x_tmp1, x_scratchpad);
+        print_insn(nullptr, "lw x%d, 0(x%d)", x_tmp1, x_tmp2);
+        print_insn(nullptr, "lw x%d, 4(x%d)", x_tmp2, x_tmp2);
     }
-    
 
     void AssemblyGeneratorRV64::h_IADD_RS(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
         uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
-        
-        printf("    slli x%d, x%d, %d\n", x_tmp1, src, ibc.shift);
 
+
+        // ibc.imm
         if (ibc.imm != 0) {
             if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
-                printf("    addi x%d, x%d, %d\n", x_tmp1, x_tmp1, (int32_t)ibc.simm);
+                print_insn("dst+=imm", "addi x%d, x%d, %d", dst, dst, (int32_t)ibc.simm);
             } else {
-                // x_tmp2 = li_imm32(ibc.imm)
+                // x_tmp1 = li_imm32(ibc.imm)
                 if (low12(ibc.simm) >= 0) {
-                    printf("    lui x%d, %d\n", x_tmp2, hi20(ibc.imm));
+                    print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm));
                 } else {
-                    printf("    lui x%d, %d\n", x_tmp2, hi20(ibc.imm) + 1);
+                    print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
                 }
-                printf("    addiw x%d, x%d, %d\n", x_tmp2, x_tmp2, low12(ibc.imm));
+                print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
 
-                // x_tmp1 = x_tmp1 + x_tmp2
-                printf("    add x%d, x%d, x%d\n", x_tmp1, x_tmp1, x_tmp2);
+                // dst = dst + x_tmp1
+                print_insn("dst+=imm", "add x%d, x%d, x%d", dst, dst, x_tmp1);
             }
         }
 
-        printf("    add x%d, x%d, x%d\n", dst, dst, x_tmp1);
+        // *ibc.isrc << ibc.shift
+        if (ibc.shift == 0) {
+            print_insn("dst+=src", "add x%d, x%d, x%d", dst, dst, src);
+        } else {
+            print_insn("src<<shamt", "slli x%d, x%d, %d", x_tmp1, src, ibc.shift);
+            print_insn("dst+=(src<<shamt)", "add x%d, x%d, x%d", dst, dst, x_tmp1);
+        }
     }
 
     void AssemblyGeneratorRV64::h_IADD_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
-        
+
         load64(ibc, nreg, prog(i));
-        printf("    add x%d, x%d, x%d\n", dst, dst, x_tmp1);
+        print_insn(nullptr, "add x%d, x%d, x%d", dst, dst, x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_ISUB_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
@@ -300,11 +339,11 @@ namespace randomx {
     }
 
     void AssemblyGeneratorRV64::h_FADD_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
-        printf("    fadd.d f%d, f%d, f%d\n", 
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d\n",
             getFRegIdx(ibc, nreg, prog(i), false, true),
             getFRegIdx(ibc, nreg, prog(i), false, true),
             getFRegIdx(ibc, nreg, prog(i), true,  true));
-        printf("    fadd.d f%d, f%d, f%d\n", 
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d\n",
             getFRegIdx(ibc, nreg, prog(i), false, false),
             getFRegIdx(ibc, nreg, prog(i), false, false),
             getFRegIdx(ibc, nreg, prog(i), true,  false));
