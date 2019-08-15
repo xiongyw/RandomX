@@ -213,7 +213,7 @@ namespace randomx {
 
         // reg==0 means "src=0": the address is imm only, so we can mask it with L3 mask at compile time.
         // fixme: if scratchpad base addr is fixed, load operations can be further optimized by adding the base addr at compile time.
-        if (is_load && reg == 0) { 
+        if (is_load && reg == 0) {
             InstructionByteCode _ibc = ibc;
             _ibc.imm &= ScratchpadL3Mask;
             load_ibc_imm(_ibc);
@@ -293,8 +293,8 @@ namespace randomx {
 
     // load ibc.imm to x_tmp1
     void AssemblyGeneratorRV64::load_ibc_imm(InstructionByteCode& ibc) {
-    
-        
+
+
         if (ibc.simm >= -2048 && ibc.imm <= 2047) {
             print_insn(nullptr, "add x%d, x%d, %d", x_tmp1, x_zero, low12(ibc.imm));
         } else {
@@ -307,7 +307,7 @@ namespace randomx {
             print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
         }
     }
-    
+
 
     void AssemblyGeneratorRV64::h_IADD_RS(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
@@ -349,7 +349,7 @@ namespace randomx {
 
     void AssemblyGeneratorRV64::h_ISUB_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
-        
+
         if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
             if (ibc.imm != 0) {
                 load_ibc_imm(ibc);
@@ -371,14 +371,14 @@ namespace randomx {
 
     void AssemblyGeneratorRV64::h_IMUL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
-        
+
         // it could be a IMUL_RCP. in such cases: dst*=ibc.imm
         if (prog(i).opcode < ceil_IMUL_RCP && prog(i).opcode >= ceil_ISMULH_M) {
             load_ibc_imm(ibc);
             print_insn(nullptr, "mul x%d, x%d, x%d", dst, dst, x_tmp1);
             return;
         }
-        
+
         if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
             if (ibc.imm != 0) {
                 load_ibc_imm(ibc);
@@ -433,7 +433,7 @@ namespace randomx {
 
     void AssemblyGeneratorRV64::h_IXOR_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
-        
+
         if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
             load_ibc_imm(ibc);
             print_insn(nullptr, "xor x%d, x%d, x%d", dst, dst, x_tmp1);
@@ -455,14 +455,14 @@ namespace randomx {
         // NB: nonce 5 has cases where src==dst, which leads to src=imm
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
 
-        // get right shamt into x_tmp1        
+        // get right shamt into x_tmp1
         if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
             print_insn("right shamt", "add x%d, x%d, %d", x_tmp1, x_zero, low12(ibc.imm & 63));
         } else {
             uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
             print_insn("right shamt", "andi x%d, x%d, 63", x_tmp1, src);
         }
-        
+
         print_insn("left shamt", "sub x%d, x%d, x%d", x_tmp2, x_n64, x_tmp1);
         print_insn(nullptr, "srl x%d, x%d, x%d", x_tmp1, dst, x_tmp1);
         print_insn(nullptr, "sll x%d, x%d, x%d", x_tmp2, dst, x_tmp2);
@@ -473,14 +473,14 @@ namespace randomx {
         // NB: nonce 2 has a case where src==dst, which leads to src=imm
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
 
-        // get left shamt into x_tmp1        
+        // get left shamt into x_tmp1
         if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
             print_insn("left shamt", "add x%d, x%d, %d", x_tmp1, x_zero, low12(ibc.imm & 63));
         } else {
             uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
             print_insn("left shamt", "andi x%d, x%d, 63", x_tmp1, src);
         }
-        
+
         print_insn("right shamt", "sub x%d, x%d, x%d", x_tmp2, x_n64, x_tmp1);
         print_insn(nullptr, "sll x%d, x%d, x%d", x_tmp1, dst, x_tmp1);
         print_insn(nullptr, "srl x%d, x%d, x%d", x_tmp2, dst, x_tmp2);
@@ -508,10 +508,10 @@ namespace randomx {
     void AssemblyGeneratorRV64::h_FSWAP_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
         uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
         uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
-        
+
         print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp1, dst_l);
         print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp2, dst_h);
-        
+
         print_insn(nullptr, "fmv.d.x f%d, x%d", dst_l, x_tmp2);
         print_insn(nullptr, "fmv.d.x f%d, x%d", dst_h, x_tmp1);
     }
@@ -564,10 +564,10 @@ namespace randomx {
 
         print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp1, dst_l);
         print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp2, dst_h);
-        
+
         print_insn(nullptr, "xor x%d, x%d, x%d", x_tmp1, x_tmp1, x_scale_mask);
         print_insn(nullptr, "xor x%d, x%d, x%d", x_tmp2, x_tmp2, x_scale_mask);
-        
+
         print_insn(nullptr, "fmv.d.x f%d, x%d", dst_l, x_tmp1);
         print_insn(nullptr, "fmv.d.x f%d, x%d", dst_h, x_tmp2);
     }
@@ -586,7 +586,7 @@ namespace randomx {
         uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
 
         load32_x2(ibc, nreg, prog(i));
-        
+
         print_insn("cvt to double", "fcvt.d.l f%d, x%d", fl_tmp, x_tmp1);
         print_insn(nullptr,         "fcvt.d.l f%d, x%d", fh_tmp, x_tmp2);
 
@@ -595,13 +595,13 @@ namespace randomx {
 
         print_insn("`and` with mantissa mask", "and x%d, x%d, x%d", x_tmp1, x_tmp1, x_E_and_mask);
         print_insn(nullptr,                    "and x%d, x%d, x%d", x_tmp2, x_tmp2, x_E_and_mask);
-        
+
         print_insn("`or` with exponent mask (lo & hi)", "or x%d, x%d, x%d", x_tmp1, x_tmp1, x_E_or_mask_l);
         print_insn(nullptr,                             "or x%d, x%d, x%d", x_tmp2, x_tmp2, x_E_or_mask_h);
 
         print_insn("mv int back to double", "fmv.d.x f%d, x%d", fl_tmp, x_tmp1);
         print_insn(nullptr,                 "fmv.d.x f%d, x%d", fh_tmp, x_tmp2);
-        
+
         print_insn("div",   "fdiv.d f%d, f%d, f%d", dst_l, dst_l, fl_tmp);
         print_insn(nullptr, "fdiv.d f%d, f%d, f%d", dst_h, dst_h, fh_tmp);
     }
@@ -621,11 +621,11 @@ namespace randomx {
 
         uint8_t right_shamt = ibc.imm & 63;
         uint8_t left_shamt = 64 - right_shamt;
-        
+
         print_insn("ror",   "srli x%d, x%d, %d", x_tmp1, src, right_shamt);
         print_insn(nullptr, "slli x%d, x%d, %d", x_tmp2, src, left_shamt);
         print_insn(nullptr, "or x%d, x%d, x%d", x_tmp1, x_tmp1, x_tmp2);
-        
+
         print_insn("rx round mode",   "andi x%d, x%d, %d", x_tmp1, x_tmp1, 0x3);
         print_insn("0->0(RNE)", "beq x%d, x0, %s", x_tmp1, l_fsrm);
 
@@ -646,6 +646,10 @@ namespace randomx {
     }
 
     void AssemblyGeneratorRV64::h_ISTORE(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t src = getIRegIdx(ibc, nreg, prog(i), true/*is_src*/);
+        getIOffset(ibc, nreg, prog(i), false/*is_load*/);
+        print_insn(nullptr, "add x%d, x%d, x%d", x_tmp1, x_tmp1, x_scratchpad);
+        print_insn(nullptr, "sd x%d, 0(x%d)", src, x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_NOP(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
