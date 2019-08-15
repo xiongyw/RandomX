@@ -56,6 +56,7 @@ namespace randomx {
         void get_offset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_load);
         void load64(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&);
         void load32_x2(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&);
+        void load_ibc_imm(InstructionByteCode& ibc);
         
 		void h_IADD_RS(InstructionByteCode&, NativeRegisterFile*, Program&, int);
 		void h_IADD_M(InstructionByteCode&, NativeRegisterFile*, Program&, int);
