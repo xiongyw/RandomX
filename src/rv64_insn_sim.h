@@ -118,7 +118,7 @@ int64_t rv64_or(int64_t rs1, int64_t rs2);
 int64_t rv64_sll(int64_t rs1, int64_t rs2);
 int64_t rv64_slli(int64_t rs1, uint8_t shamt);
 int64_t rv64_srl(int64_t rs1, int64_t rs2);
-//int64_t rv64_srli(int64_t rs1, uint8_t shamt);
+int64_t rv64_srli(int64_t rs1, uint8_t shamt);
 void rv64_sd(int64_t rs1, int64_t rs2, int32_t imm12);
 int64_t rv64_sub(int64_t rs1, int64_t rs2);
 

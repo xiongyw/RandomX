@@ -549,13 +549,12 @@ namespace randomx {
             //uint64_t frm = rotr(*ibc.isrc, ibc.imm) % 4;
             //std::cout << std::endl << "CFROUND(): golden RX frm=" << frm;
 
-            // right rotate `src` by `imm32`
             int64_t x_zero = 0;
-            int64_t x_n64 = 64;
-            int64_t x_tmp1 = rv64_andi(ibc.imm, 63);  // right shamt
-            int64_t x_tmp2 = rv64_sub(x_n64, x_tmp1); // left shamt
-            x_tmp1 = rv64_srl(*ibc.isrc, x_tmp1);
-            x_tmp2 = rv64_sll(*ibc.isrc, x_tmp2);
+            // right rotate `src` by `imm32`
+            uint8_t right_shamt = ibc.imm & 63;
+            uint8_t left_shamt = 64 - right_shamt;
+            int64_t x_tmp1 = rv64_srli(*ibc.isrc, right_shamt);
+            int64_t x_tmp2 = rv64_slli(*ibc.isrc, left_shamt);
             x_tmp1 = rv64_or(x_tmp1, x_tmp2);
 
             // clear high 62-bit to get the round mode
@@ -578,8 +577,9 @@ namespace randomx {
 
             // set frm
             rv64p_fsrm(x_tmp1);
-#endif
+#else
 			rx_set_rounding_mode(rotr(*ibc.isrc, ibc.imm) % 4);
+#endif
 		}
 
 		static void exe_ISTORE(RANDOMX_EXE_ARGS) {

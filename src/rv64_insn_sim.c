@@ -399,12 +399,10 @@ int64_t rv64_srl(int64_t rs1, int64_t rs2)
     return (int64_t)(((uint64_t)rs1) >> (rs2 & 63));
 }
 
-#if (0)
 int64_t rv64_srli(int64_t rs1, uint8_t shamt)
 {
     return (int64_t)(((uint64_t)rs1) >> shamt);
 }
-#endif
 
 // M[x[rs1]+sext(offset)]=rs2[63:0]
 void rv64_sd(int64_t rs1, int64_t rs2, int32_t imm12)

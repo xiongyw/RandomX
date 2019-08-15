@@ -607,9 +607,39 @@ namespace randomx {
     }
 
     void AssemblyGeneratorRV64::h_FSQRT_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+        print_insn(nullptr, "fsqrt.d f%d, f%d", dst_l, dst_l);
+        print_insn(nullptr, "fsqrt.d f%d, f%d", dst_h, dst_h);
     }
 
     void AssemblyGeneratorRV64::h_CFROUND(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+
+        const char l_fsrm[] = "FSRM";
+        const char l_lt3[] = "LT3";
+        uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
+
+        uint8_t right_shamt = ibc.imm & 63;
+        uint8_t left_shamt = 64 - right_shamt;
+        
+        print_insn("ror",   "srli x%d, x%d, %d", x_tmp1, src, right_shamt);
+        print_insn(nullptr, "slli x%d, x%d, %d", x_tmp2, src, left_shamt);
+        print_insn(nullptr, "or x%d, x%d, x%d", x_tmp1, x_tmp1, x_tmp2);
+        
+        print_insn("rx round mode",   "andi x%d, x%d, %d", x_tmp1, x_tmp1, 0x3);
+        print_insn("0->0(RNE)", "beq x%d, x0, %s", x_tmp1, l_fsrm);
+
+        // x_tmp1 != 0
+        print_insn(nullptr, "addi x%d, x0, 3", x_tmp2);
+        print_insn(nullptr, "blt x%d, x%d, %s", x_tmp1, x_tmp2, l_lt3);
+        // x_tmp1 >= 3
+        print_insn("3->1(RTZ)", "addi x%d, x0, %d", x_tmp1, 1);
+        print_insn(nullptr, "jal %s", l_fsrm);
+        // x_tmp < 3
+        print_insn("1->2(RDN), 2->3(RUP)", "%s: addi x%d, x%d, 1", l_lt3, x_tmp1, x_tmp1);
+
+        // do the fsrm via `csrrw`
+        print_insn(nullptr, "%s: csrrw x0, frm, x%d", l_fsrm, x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_CBRANCH(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
