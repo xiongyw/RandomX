@@ -89,11 +89,14 @@ namespace randomx {
     static uint8_t x_E_or_mask_l = 22;
     static uint8_t x_E_or_mask_h = 23;
 
+    static uint8_t fl_tmp = 28;
+    static uint8_t fh_tmp = 29;
+
 
 
     uint8_t AssemblyGeneratorRV64::getIRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_src) {
 
-        // handle special case when `ibc.isrc=&BytecodeMachine::zero` for *_M instructions
+        // handle special case when `ibc.isrc=&BytecodeMachine::zero` for I*_M instructions
         if (is_src && (instr.src % RegistersCount) == (instr.dst % RegistersCount) &&
             (ibc.type == InstructionType::IADD_M ||
              ibc.type == InstructionType::ISUB_M ||
@@ -204,8 +207,8 @@ namespace randomx {
         }
     }
 
-    // x_tmp1 holds the offset in scratchpad, either for load or store
-    void AssemblyGeneratorRV64::get_offset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_load) {
+    // x_tmp1 holds the offset in scratchpad, either for load or store of integer instructions (I*)
+    void AssemblyGeneratorRV64::getIOffset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_load) {
         uint8_t reg = getIRegIdx(ibc, nreg, instr, is_load);
 
         // reg==0 means "src=0": the address is imm only, so we can mask it with L3 mask at compile time.
@@ -246,16 +249,43 @@ namespace randomx {
         }
     }
 
+    // x_tmp1 holds the offset in scratchpad for load of float instructions (F*)
+    void AssemblyGeneratorRV64::getFOffset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr) {
+        uint8_t src = getIRegIdx(ibc, nreg, instr, true/*is_src*/);
+
+        //x_tmp1 = *ibc.isrc + ibc.imm
+        if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
+            print_insn("load imm32", "addi x%d, x%d, %d", x_tmp1, src, (int32_t)ibc.simm);
+        } else {
+            // x_tmp1 = li_imm32(ibc.imm)
+            if (low12(ibc.simm) >= 0) {
+                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm));
+            } else {
+                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
+            }
+            print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
+
+            // x_tmp1 = x_tmp1 + isrc
+            print_insn("offset=src+imm32", "add x%d, x%d, x%d", x_tmp1, x_tmp1, src);
+        }
+
+        // x_tmp1 = x_tmp1 & LxMask: offset in scratchpad
+        if (instr.getModMem())
+            print_insn("offset & L1 mask", "and x%d, x%d, x%d", x_tmp1, x_tmp1, x_L1_mask);
+        else
+            print_insn("offset & L2 mask", "and x%d, x%d, x%d", x_tmp1, x_tmp1, x_L2_mask);
+    }
+
     // x_tmp1 holds 64-bit value from scratchpad
     void AssemblyGeneratorRV64::load64(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr) {
-        get_offset(ibc, nreg, instr, true);
+        getIOffset(ibc, nreg, instr, true);
         print_insn("offset+scratchpad", "add x%d, x%d, x%d", x_tmp1, x_tmp1, x_scratchpad);
         print_insn(nullptr, "ld x%d, 0(x%d)", x_tmp1, x_tmp1);
     }
 
     // read 8-byte to x_tmp1/x_tmp2, 4-byte each
     void AssemblyGeneratorRV64::load32_x2(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr) {
-        get_offset(ibc, nreg, instr, true);
+        getFOffset(ibc, nreg, instr);
         print_insn("offset+scratchpad", "add x%d, x%d, x%d", x_tmp2, x_tmp1, x_scratchpad);
         print_insn(nullptr, "lw x%d, 0(x%d)", x_tmp1, x_tmp2);
         print_insn(nullptr, "lw x%d, 4(x%d)", x_tmp2, x_tmp2);
@@ -397,47 +427,135 @@ namespace randomx {
     }
 
     void AssemblyGeneratorRV64::h_INEG_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+        print_insn(nullptr, "sub x%d, x%d, x%d", dst, x_zero, dst);
     }
 
     void AssemblyGeneratorRV64::h_IXOR_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+        
+        if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
+            load_ibc_imm(ibc);
+            print_insn(nullptr, "xor x%d, x%d, x%d", dst, dst, x_tmp1);
+        } else {
+            uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
+            print_insn(nullptr, "xor x%d, x%d, x%d", dst, dst, src);
+        }
     }
 
     void AssemblyGeneratorRV64::h_IXOR_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        // NB: nonce 3 has a instr case where src==dst, which leads to src=0
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+
+        load64(ibc, nreg, prog(i));
+        print_insn(nullptr, "xor x%d, x%d, x%d", dst, dst, x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_IROR_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        // NB: nonce 5 has cases where src==dst, which leads to src=imm
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+
+        // get right shamt into x_tmp1        
+        if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
+            print_insn("right shamt", "add x%d, x%d, %d", x_tmp1, x_zero, low12(ibc.imm & 63));
+        } else {
+            uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
+            print_insn("right shamt", "andi x%d, x%d, 63", x_tmp1, src);
+        }
+        
+        print_insn("left shamt", "sub x%d, x%d, x%d", x_tmp2, x_n64, x_tmp1);
+        print_insn(nullptr, "srl x%d, x%d, x%d", x_tmp1, dst, x_tmp1);
+        print_insn(nullptr, "sll x%d, x%d, x%d", x_tmp2, dst, x_tmp2);
+        print_insn(nullptr, "or x%d, x%d, x%d", dst, x_tmp1, x_tmp2);
     }
 
     void AssemblyGeneratorRV64::h_IROL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        // NB: nonce 2 has a case where src==dst, which leads to src=imm
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+
+        // get left shamt into x_tmp1        
+        if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
+            print_insn("left shamt", "add x%d, x%d, %d", x_tmp1, x_zero, low12(ibc.imm & 63));
+        } else {
+            uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
+            print_insn("left shamt", "andi x%d, x%d, 63", x_tmp1, src);
+        }
+        
+        print_insn("right shamt", "sub x%d, x%d, x%d", x_tmp2, x_n64, x_tmp1);
+        print_insn(nullptr, "sll x%d, x%d, x%d", x_tmp1, dst, x_tmp1);
+        print_insn(nullptr, "srl x%d, x%d, x%d", x_tmp2, dst, x_tmp2);
+        print_insn(nullptr, "or x%d, x%d, x%d", dst, x_tmp1, x_tmp2);
     }
 
     void AssemblyGeneratorRV64::h_IMUL_RCP(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        // IMUL_RCP maps to either NOP or IMUL_R
+        __builtin_unreachable();
     }
 
     void AssemblyGeneratorRV64::h_ISWAP_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+        uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
+
+        if (dst == src) { // it's a NOP, and the register is treated as "unmodfied"
+            // nonce 2 has a case where dst==src
+            return;
+        }
+        print_insn(nullptr, "addi x%d, x%d, 0", x_tmp1, src);
+        print_insn(nullptr, "addi x%d, x%d, 0", src, dst);
+        print_insn(nullptr, "addi x%d, x%d, 0", dst, x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_FSWAP_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+        
+        print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp1, dst_l);
+        print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp2, dst_h);
+        
+        print_insn(nullptr, "fmv.d.x f%d, x%d", dst_l, x_tmp2);
+        print_insn(nullptr, "fmv.d.x f%d, x%d", dst_h, x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_FADD_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
-        print_insn(nullptr, "fadd.d f%d, f%d, f%d",
-            getFRegIdx(ibc, nreg, prog(i), false, true),
-            getFRegIdx(ibc, nreg, prog(i), false, true),
-            getFRegIdx(ibc, nreg, prog(i), true,  true));
-        print_insn(nullptr, "fadd.d f%d, f%d, f%d",
-            getFRegIdx(ibc, nreg, prog(i), false, false),
-            getFRegIdx(ibc, nreg, prog(i), false, false),
-            getFRegIdx(ibc, nreg, prog(i), true,  false));
+        uint8_t src_l = getFRegIdx(ibc, nreg, prog(i), true/*is_src*/,  true/*is_low*/);
+        uint8_t src_h = getFRegIdx(ibc, nreg, prog(i), true/*is_src*/,  false/*is_low*/);
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d", dst_l, dst_l, src_l);
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d", dst_h, dst_h, src_h);
     }
 
     void AssemblyGeneratorRV64::h_FADD_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+
+        load32_x2(ibc, nreg, prog(i));
+
+        print_insn(nullptr, "fcvt.d.l f%d, x%d", fl_tmp, x_tmp1);
+        print_insn(nullptr, "fcvt.d.l f%d, x%d", fh_tmp, x_tmp2);
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d", dst_l, dst_l, fl_tmp);
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d", dst_h, dst_h, fh_tmp);
     }
 
     void AssemblyGeneratorRV64::h_FSUB_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t src_l = getFRegIdx(ibc, nreg, prog(i), true/*is_src*/,  true/*is_low*/);
+        uint8_t src_h = getFRegIdx(ibc, nreg, prog(i), true/*is_src*/,  false/*is_low*/);
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+        print_insn(nullptr, "fsub.d f%d, f%d, f%d", dst_l, dst_l, src_l);
+        print_insn(nullptr, "fsub.d f%d, f%d, f%d", dst_h, dst_h, src_h);
     }
 
     void AssemblyGeneratorRV64::h_FSUB_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+
+        load32_x2(ibc, nreg, prog(i));
+
+        print_insn(nullptr, "fcvt.d.l f%d, x%d", fl_tmp, x_tmp1);
+        print_insn(nullptr, "fcvt.d.l f%d, x%d", fh_tmp, x_tmp2);
+        print_insn(nullptr, "fsub.d f%d, f%d, f%d", dst_l, dst_l, fl_tmp);
+        print_insn(nullptr, "fsub.d f%d, f%d, f%d", dst_h, dst_h, fh_tmp);
     }
 
     void AssemblyGeneratorRV64::h_FSCAL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {

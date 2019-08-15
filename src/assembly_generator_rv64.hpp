@@ -50,10 +50,13 @@ namespace randomx {
 		void tracenop(InstructionByteCode&);
 
 		void generateCode(InstructionByteCode& ibc, NativeRegisterFile*, Program&, int);
+        
         uint8_t getIRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_src);
         uint8_t getFRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_src, bool is_low);
+        
+        void getIOffset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_load);
+        void getFOffset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&);
 
-        void get_offset(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&, bool is_load);
         void load64(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&);
         void load32_x2(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction&);
         void load_ibc_imm(InstructionByteCode& ibc);
