@@ -213,19 +213,22 @@ namespace randomx {
             );
 #else
 #if (RV64_I_INSN_SIM)
-            // fixme: it seems signed extended imm32 is always used as uint64_t (i.e., ibc.imm)
-            int64_t x_tmp1 = rv64_slli(*ibc.isrc, ibc.shift);
-            // CSAPP p105: When an operation is performed where one operand is signed
-            // and the other is unsigned, C implicitly casts the signed argument to
-            // unsigned and performs the operations assuming the numbers are nonnegative.
-            if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
-                x_tmp1 = rv64_addi(x_tmp1, low12(ibc.imm));
+
+            if (ibc.shift == 0) {
+                *ibc.idst = rv64_add(*ibc.idst, *ibc.isrc);
+            } else {
+                int64_t x_tmp1 = rv64_slli(*ibc.isrc, ibc.shift);
+                *ibc.idst = rv64_add(*ibc.idst, x_tmp1);
             }
-            else {
-                int64_t x_tmp2 = rv64p_li_imm32(ibc.imm);
-                x_tmp1 = rv64_add(x_tmp1, x_tmp2);
+
+            if (ibc.imm != 0) {
+                if (ibc.simm >= -2048 && ibc.imm <= 2047) {
+                    *ibc.idst = rv64_add(*ibc.idst, low12(ibc.imm));
+                } else {
+                    int64_t x_tmp1 = rv64p_li_imm32(ibc.imm);
+                    *ibc.idst = rv64_add(*ibc.idst, x_tmp1);
+                }
             }
-            *ibc.idst = rv64_add(*ibc.idst, x_tmp1);
 #else
 			*ibc.idst += (*ibc.isrc << ibc.shift) + ibc.imm;
 #endif
