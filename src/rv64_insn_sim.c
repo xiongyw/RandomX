@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <string.h>
+#include <math.h>   // sqrt()
 //#define NDEBUG
 #include <assert.h>
 
@@ -230,6 +231,35 @@ int64_t rv64p_frrm(void)
 {
     return (int64_t)s_frm;
 }
+
+double rv64_fsqrt_d(double rs)
+{
+#pragma STDC FENV_ACCESS ON
+
+    // store the original rounding mode
+    const int originalRounding = fegetround();
+
+    // set the rounding mode
+    switch(s_frm) {
+        case RV_FRM_RNE: fesetround(FE_TONEAREST); break;
+        case RV_FRM_RTZ: fesetround(FE_TOWARDZERO); break;
+        case RV_FRM_RDN: fesetround(FE_DOWNWARD); break;
+        case RV_FRM_RUP: fesetround(FE_UPWARD); break;
+        default:
+            __builtin_unreachable();
+    }
+
+    // do calculations
+    double dst = sqrt(rs);
+
+    // restore the original mode afterwards
+    fesetround(originalRounding);
+
+#pragma STDC FENV_ACCESS OFF
+
+    return dst;
+}
+
 
 // pseudo-instruction: set round mode, expand to `csrrw rd, frm, rs1`
 void rv64p_fsrm(int64_t rs)

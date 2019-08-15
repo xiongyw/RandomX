@@ -94,6 +94,7 @@ double rv64_fmv_d_x(int64_t rs1);
 int64_t rv64_fmv_x_d(double rs1);
 
 int64_t rv64p_frrm(void);     // read round mode
+double rv64_fsqrt_d(double rs);
 void rv64p_fsrm(int64_t rs);  // set round mode
 double rv64_fsub_d(double rs1, double rs2);
 

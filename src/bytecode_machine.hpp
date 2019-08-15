@@ -527,7 +527,14 @@ namespace randomx {
 		}
 
 		static void exe_FSQRT_R(RANDOMX_EXE_ARGS) {
+#if (RV64_F_INSN_SIM)
+            double* fdst_l = &(((rx_vec_f128*)ibc.fdst)->lo);
+            double* fdst_h = &(((rx_vec_f128*)ibc.fdst)->hi);
+            *fdst_l = rv64_fsqrt_d(*fdst_l);
+            *fdst_h = rv64_fsqrt_d(*fdst_h);
+#else
 			*ibc.fdst = rx_sqrt_vec_f128(*ibc.fdst);
+#endif
 		}
 
 		static void exe_CBRANCH(RANDOMX_EXE_ARGS) {

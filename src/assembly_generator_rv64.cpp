@@ -559,12 +559,51 @@ namespace randomx {
     }
 
     void AssemblyGeneratorRV64::h_FSCAL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+
+        print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp1, dst_l);
+        print_insn(nullptr, "fmv.x.d x%d, f%d", x_tmp2, dst_h);
+        
+        print_insn(nullptr, "xor x%d, x%d, x%d", x_tmp1, x_tmp1, x_scale_mask);
+        print_insn(nullptr, "xor x%d, x%d, x%d", x_tmp2, x_tmp2, x_scale_mask);
+        
+        print_insn(nullptr, "fmv.d.x f%d, x%d", dst_l, x_tmp1);
+        print_insn(nullptr, "fmv.d.x f%d, x%d", dst_h, x_tmp2);
     }
 
     void AssemblyGeneratorRV64::h_FMUL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t src_l = getFRegIdx(ibc, nreg, prog(i), true/*is_src*/,  true/*is_low*/);
+        uint8_t src_h = getFRegIdx(ibc, nreg, prog(i), true/*is_src*/,  false/*is_low*/);
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+        print_insn(nullptr, "fmul.d f%d, f%d, f%d", dst_l, dst_l, src_l);
+        print_insn(nullptr, "fmul.d f%d, f%d, f%d", dst_h, dst_h, src_h);
     }
 
     void AssemblyGeneratorRV64::h_FDIV_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst_l = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, true/*is_low*/);
+        uint8_t dst_h = getFRegIdx(ibc, nreg, prog(i), false/*is_src*/, false/*is_low*/);
+
+        load32_x2(ibc, nreg, prog(i));
+        
+        print_insn("cvt to double", "fcvt.d.l f%d, x%d", fl_tmp, x_tmp1);
+        print_insn(nullptr,         "fcvt.d.l f%d, x%d", fh_tmp, x_tmp2);
+
+        print_insn("mv double to int", "fmv.x.d x%d, f%d", x_tmp1, fl_tmp);
+        print_insn(nullptr,            "fmv.x.d x%d, f%d", x_tmp2, fh_tmp);
+
+        print_insn("`and` with mantissa mask", "and x%d, x%d, x%d", x_tmp1, x_tmp1, x_E_and_mask);
+        print_insn(nullptr,                    "and x%d, x%d, x%d", x_tmp2, x_tmp2, x_E_and_mask);
+        
+        print_insn("`or` with exponent mask (lo & hi)", "or x%d, x%d, x%d", x_tmp1, x_tmp1, x_E_or_mask_l);
+        print_insn(nullptr,                             "or x%d, x%d, x%d", x_tmp2, x_tmp2, x_E_or_mask_h);
+
+        print_insn("mv int back to double", "fmv.d.x f%d, x%d", fl_tmp, x_tmp1);
+        print_insn(nullptr,                 "fmv.d.x f%d, x%d", fh_tmp, x_tmp2);
+        
+        print_insn("div",   "fdiv.d f%d, f%d, f%d", dst_l, dst_l, fl_tmp);
+        print_insn(nullptr, "fdiv.d f%d, f%d, f%d", dst_h, dst_h, fh_tmp);
     }
 
     void AssemblyGeneratorRV64::h_FSQRT_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
