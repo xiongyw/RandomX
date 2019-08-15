@@ -94,7 +94,7 @@ namespace randomx {
     uint8_t AssemblyGeneratorRV64::getIRegIdx(InstructionByteCode& ibc, NativeRegisterFile* nreg, Instruction& instr, bool is_src) {
 
         // handle special case when `ibc.isrc=&BytecodeMachine::zero` for *_M instructions
-        if ((instr.src % RegistersCount) == (instr.dst % RegistersCount) &&
+        if (is_src && (instr.src % RegistersCount) == (instr.dst % RegistersCount) &&
             (ibc.type == InstructionType::IADD_M ||
              ibc.type == InstructionType::ISUB_M ||
              ibc.type == InstructionType::IMUL_M ||
@@ -255,11 +255,18 @@ namespace randomx {
         uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
         uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
 
+        // *ibc.isrc << ibc.shift
+        if (ibc.shift == 0) {
+            print_insn("dst+=src", "add x%d, x%d, x%d", dst, dst, src);
+        } else {
+            print_insn("src<<shamt", "slli x%d, x%d, %d", x_tmp1, src, ibc.shift);
+            print_insn("dst+=(src<<shamt)", "add x%d, x%d, x%d", dst, dst, x_tmp1);
+        }
 
         // ibc.imm
         if (ibc.imm != 0) {
-            if ((int32_t)ibc.imm >= -2048 && ibc.imm <= 2047) {
-                print_insn("dst+=imm", "addi x%d, x%d, %d", dst, dst, (int32_t)ibc.simm);
+            if (ibc.simm >= -2048 && ibc.imm <= 2047) {
+                print_insn("dst+=imm", "addi x%d, x%d, %d", dst, dst, low12(ibc.imm));
             } else {
                 // x_tmp1 = li_imm32(ibc.imm)
                 if (low12(ibc.simm) >= 0) {
@@ -273,14 +280,6 @@ namespace randomx {
                 print_insn("dst+=imm", "add x%d, x%d, x%d", dst, dst, x_tmp1);
             }
         }
-
-        // *ibc.isrc << ibc.shift
-        if (ibc.shift == 0) {
-            print_insn("dst+=src", "add x%d, x%d, x%d", dst, dst, src);
-        } else {
-            print_insn("src<<shamt", "slli x%d, x%d, %d", x_tmp1, src, ibc.shift);
-            print_insn("dst+=(src<<shamt)", "add x%d, x%d, x%d", dst, dst, x_tmp1);
-        }
     }
 
     void AssemblyGeneratorRV64::h_IADD_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
@@ -291,9 +290,37 @@ namespace randomx {
     }
 
     void AssemblyGeneratorRV64::h_ISUB_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+        
+        if ((prog(i).src % RegistersCount == prog(i).dst % RegistersCount)) { // src=imm32
+            if (ibc.imm != 0) {
+                if (ibc.simm >= -2048 && ibc.imm <= 2047) {
+                    print_insn(nullptr, "add x%d, x%d, %d", x_tmp1, x_zero, low12(ibc.imm)); // no `subi` instruction in risc-v
+                } else {
+                    // x_tmp1 = li_imm32(ibc.imm)
+                    if (low12(ibc.simm) >= 0) {
+                        print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm));
+                    } else {
+                        print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
+                    }
+                    print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
+            
+                }
+                // dst = dst - x_tmp1
+                print_insn("dst-=imm", "sub x%d, x%d, x%d", dst, dst, x_tmp1);
+            }
+        } else {
+            uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
+            print_insn(nullptr, "sub x%d, x%d, x%d", dst, dst, src);
+        }
     }
 
     void AssemblyGeneratorRV64::h_ISUB_M(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
+        // NB: nonce 13 has a instr case where src==dst
+        uint8_t dst = getIRegIdx(ibc, nreg, prog(i), false);
+
+        load64(ibc, nreg, prog(i));
+        print_insn(nullptr, "sub x%d, x%d, x%d", dst, dst, x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_IMUL_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
@@ -339,11 +366,11 @@ namespace randomx {
     }
 
     void AssemblyGeneratorRV64::h_FADD_R(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
-        print_insn(nullptr, "fadd.d f%d, f%d, f%d\n",
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d",
             getFRegIdx(ibc, nreg, prog(i), false, true),
             getFRegIdx(ibc, nreg, prog(i), false, true),
             getFRegIdx(ibc, nreg, prog(i), true,  true));
-        print_insn(nullptr, "fadd.d f%d, f%d, f%d\n",
+        print_insn(nullptr, "fadd.d f%d, f%d, f%d",
             getFRegIdx(ibc, nreg, prog(i), false, false),
             getFRegIdx(ibc, nreg, prog(i), false, false),
             getFRegIdx(ibc, nreg, prog(i), true,  false));
