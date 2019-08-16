@@ -62,7 +62,7 @@ namespace randomx {
                 printf(" ");
 
             // comment and newline
-            printf("; %s\n", comment);
+            printf("# %s\n", comment);
         }
     }
 
@@ -137,11 +137,15 @@ namespace randomx {
             decoder.compileInstruction(instr, i, ibc);
         }
 
+        printf("# compile: riscv64-unknown-linux-gnu-gcc -c -march=rv64imfd\n");
+        printf("# disasm:  riscv64-unknown-linux-gnu-objdump -S -Mnumeric,no-aliases\n");
+        printf("\n");
+        
         for (unsigned i = 0; i < prog.getSize(); ++i) {
             // VM instruction
             printf("L%03d:", i);
             for (int i = 0; i < COMMENT_COL - 5; i ++) printf(" ");
-            printf("# ");
+            printf("#; ");
             std::cout << prog(i);
 
             // native instructions
@@ -227,9 +231,9 @@ namespace randomx {
 
             // x_tmp1 = li_imm32(ibc.imm)
             if (low12(ibc.simm) >= 0) {
-                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm));
+                print_insn("load imm32", "lui x%d, 0x%x", x_tmp1, (uint32_t)hi20(ibc.imm) & 0xfffff);
             } else {
-                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
+                print_insn("load imm32", "lui x%d, 0x%x", x_tmp1, (uint32_t)(hi20(ibc.imm) + 1) & 0xfffff);
             }
             print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
 
@@ -259,9 +263,9 @@ namespace randomx {
         } else {
             // x_tmp1 = li_imm32(ibc.imm)
             if (low12(ibc.simm) >= 0) {
-                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm));
+                print_insn("load imm32", "lui x%d, 0x%x", x_tmp1, (uint32_t)hi20(ibc.imm) & 0xfffff);
             } else {
-                print_insn("load imm32", "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
+                print_insn("load imm32", "lui x%d, 0x%x", x_tmp1, (uint32_t)(hi20(ibc.imm) + 1) & 0xfffff);
             }
             print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
 
@@ -300,9 +304,9 @@ namespace randomx {
         } else {
             // x_tmp1 = li_imm32(ibc.imm)
             if (low12(ibc.simm) >= 0) {
-                print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm));
+                print_insn(nullptr, "lui x%d, 0x%x", x_tmp1, (uint32_t)hi20(ibc.imm) & 0xfffff);
             } else {
-                print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
+                print_insn(nullptr, "lui x%d, 0x%x", x_tmp1, (uint32_t)(hi20(ibc.imm) + 1) & 0xfffff);
             }
             print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
         }
@@ -328,9 +332,9 @@ namespace randomx {
             } else {
                 // x_tmp1 = li_imm32(ibc.imm)
                 if (low12(ibc.simm) >= 0) {
-                    print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm));
+                    print_insn(nullptr, "lui x%d, 0x%x", x_tmp1, (uint32_t)hi20(ibc.imm) & 0xfffff);
                 } else {
-                    print_insn(nullptr, "lui x%d, %d", x_tmp1, hi20(ibc.imm) + 1);
+                    print_insn(nullptr, "lui x%d, 0x%x", x_tmp1, (uint32_t)(hi20(ibc.imm) + 1) & 0xfffff);
                 }
                 print_insn(nullptr, "addiw x%d, x%d, %d", x_tmp1, x_tmp1, low12(ibc.imm));
 
@@ -616,7 +620,7 @@ namespace randomx {
     void AssemblyGeneratorRV64::h_CFROUND(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
 
         const char l_fsrm[] = "FSRM";
-        const char l_lt3[] = "LT3";
+        const char l_lt3[] = "LT";
         uint8_t src = getIRegIdx(ibc, nreg, prog(i), true);
 
         uint8_t right_shamt = ibc.imm & 63;
@@ -627,19 +631,21 @@ namespace randomx {
         print_insn(nullptr, "or x%d, x%d, x%d", x_tmp1, x_tmp1, x_tmp2);
 
         print_insn("rx round mode",   "andi x%d, x%d, %d", x_tmp1, x_tmp1, 0x3);
-        print_insn("0->0(RNE)", "beq x%d, x0, %s", x_tmp1, l_fsrm);
+        print_insn("0->0(RNE)", "beq x%d, x0, %s%d", x_tmp1, l_fsrm, i);
 
         // x_tmp1 != 0
         print_insn(nullptr, "addi x%d, x0, 3", x_tmp2);
-        print_insn(nullptr, "blt x%d, x%d, %s", x_tmp1, x_tmp2, l_lt3);
+        print_insn(nullptr, "blt x%d, x%d, %s%d", x_tmp1, x_tmp2, l_lt3, i);
         // x_tmp1 >= 3
         print_insn("3->1(RTZ)", "addi x%d, x0, %d", x_tmp1, 1);
-        print_insn(nullptr, "jal %s", l_fsrm);
+        print_insn(nullptr, "jal %s%d", l_fsrm, i);
         // x_tmp < 3
-        print_insn("1->2(RDN), 2->3(RUP)", "%s: addi x%d, x%d, 1", l_lt3, x_tmp1, x_tmp1);
+        printf("%s%d:\n", l_lt3, i);
+        print_insn("1->2(RDN), 2->3(RUP)", "addi x%d, x%d, 1", x_tmp1, x_tmp1);
 
         // do the fsrm via `csrrw`
-        print_insn(nullptr, "%s: csrrw x0, frm, x%d", l_fsrm, x_tmp1);
+        printf("%s%d:\n", l_fsrm, i);
+        print_insn(nullptr, "csrrw x0, frm, x%d", x_tmp1);
     }
 
     void AssemblyGeneratorRV64::h_CBRANCH(InstructionByteCode& ibc, NativeRegisterFile* nreg, Program& prog, int i) {
