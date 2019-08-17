@@ -140,7 +140,7 @@ namespace randomx {
         printf("# compile: riscv64-unknown-linux-gnu-gcc -c -march=rv64imfd\n");
         printf("# disasm:  riscv64-unknown-linux-gnu-objdump -S -Mnumeric,no-aliases\n");
         printf("\n");
-        
+
         for (unsigned i = 0; i < prog.getSize(); ++i) {
             // VM instruction
             printf("L%03d:", i);
@@ -630,6 +630,7 @@ namespace randomx {
         print_insn(nullptr, "slli x%d, x%d, %d", x_tmp2, src, left_shamt);
         print_insn(nullptr, "or x%d, x%d, x%d", x_tmp1, x_tmp1, x_tmp2);
 
+#if (0)
         print_insn("rx round mode",   "andi x%d, x%d, %d", x_tmp1, x_tmp1, 0x3);
         print_insn("0->0(RNE)", "beq x%d, x0, %s%d", x_tmp1, l_fsrm, i);
 
@@ -645,6 +646,14 @@ namespace randomx {
 
         // do the fsrm via `csrrw`
         printf("%s%d:\n", l_fsrm, i);
+#else
+        print_insn("bit 1", "slli x%d, x%d, 1", x_tmp2, x_tmp1);
+        print_insn(nullptr, "xor x%d, x%d, x%d", x_tmp2, x_tmp1, x_tmp2);
+        print_insn(nullptr, "andi x%d, x%d, 2", x_tmp2, x_tmp2);
+        print_insn("bit 0", "srli x%d, x%d, 1", x_tmp1, x_tmp1);
+        print_insn(nullptr, "andi x%d, x%d, 1", x_tmp1, x_tmp1);
+        print_insn("risc-v rounding mode", "or x%d, x%d, x%d", x_tmp1, x_tmp1, x_tmp2);
+#endif
         print_insn(nullptr, "csrrw x0, frm, x%d", x_tmp1);
     }
 
