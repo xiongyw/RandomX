@@ -557,9 +557,9 @@ namespace randomx {
             int64_t x_tmp2 = rv64_slli(*ibc.isrc, left_shamt);
             x_tmp1 = rv64_or(x_tmp1, x_tmp2);
 
+#if (0)
             // clear high 62-bit to get the round mode
             x_tmp1 = rv64_andi(x_tmp1, 0x3);
-
             //std::cout << ", simulated frm=" << x_tmp1 << std::endl;
 
             // map randomx round mode to risc-v round mode:
@@ -574,6 +574,18 @@ namespace randomx {
                 else
                     x_tmp1 = rv64_addi(x_zero, 1);
             }
+#else
+            // https://stackoverflow.com/questions/57517360/convert-a-simple-if-else-into-an-expression
+            // bit 1: xor of original bit 0 & 1
+            x_tmp2 = rv64_slli(x_tmp1, 1);
+            x_tmp2 = rv64_xor(x_tmp1, x_tmp2);
+            x_tmp2 = rv64_andi(x_tmp2, 0x2);
+            // bit 0: original bit 1
+            x_tmp1 = rv64_srli(x_tmp1, 1);
+            x_tmp1 = rv64_andi(x_tmp1, 0x1);
+            // bit [1:0]
+            x_tmp1 = rv64_or(x_tmp1, x_tmp2);
+#endif
 
             // set frm
             rv64p_fsrm(x_tmp1);
